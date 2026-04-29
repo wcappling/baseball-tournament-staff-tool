@@ -42,7 +42,8 @@ python -m uvicorn baseball_aggregator.app:app --host 0.0.0.0 --port $PORT
 ```
 
 This repository includes both `Procfile` and `railway.json` with that start
-command.
+command, plus root-level `requirements.txt` and `.python-version` files so
+Railway detects the app as Python.
 
 Required Railway variables:
 
