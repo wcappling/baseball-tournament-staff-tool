@@ -1,0 +1,15 @@
+.venv/
+.tmp/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+baseball_aggregator/data/
+baseball_aggregator/mnt/
+*.zip
+.env
+.env.*
+!.env.example
+*.sqlite3
+*.sqlite3-*
+backups/
+pytest-cache-files-*/

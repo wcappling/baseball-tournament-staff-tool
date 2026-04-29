@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Baseball Tournament Staff Tool</title>
+  <script>
+    (function () {
+      const key = "staff_tool_theme";
+      const stored = localStorage.getItem(key);
+      const theme = stored === "dark" || stored === "light" ? stored : "dark";
+      document.documentElement.setAttribute("data-theme", theme);
+    }());
+  </script>
+  <link rel="stylesheet" href="/static/styles.css?v=20260429-shareable-mvp">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Tournament Staff Tool</h1>
+      <p id="profile">Huntsville, AL - 200 miles - 8U</p>
+    </div>
+    <div class="topbar-actions">
+      <button id="themeToggle" title="Switch between light and dark theme">Dark mode</button>
+      <button id="refreshBtn" class="primary" title="Refresh tournament sources">Refresh</button>
+      <button id="logoutBtn" title="Sign out of the staff tool">Logout</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="toolbar" aria-label="Tournament filters">
+      <label>Source
+        <select id="sourceFilter">
+          <option value="">All</option>
+          <option value="ncs">NCS</option>
+          <option value="usssa">USSSA</option>
+          <option value="perfect_game">Perfect Game</option>
+        </select>
+      </label>
+      <label>Age
+        <select id="ageFilter">
+          <option value="6U">6U</option>
+          <option value="7U">7U</option>
+          <option value="8U" selected>8U</option>
+          <option value="9U">9U</option>
+          <option value="10U">10U</option>
+          <option value="11U">11U</option>
+          <option value="12U">12U</option>
+          <option value="13U">13U</option>
+          <option value="14U">14U</option>
+          <option value="15U">15U</option>
+          <option value="16U">16U</option>
+          <option value="17U">17U</option>
+          <option value="18U">18U</option>
+        </select>
+      </label>
+      <div class="filter-field division-filter">
+        <span class="filter-label">Division</span>
+        <button id="divisionMenuButton" class="select-like" type="button" aria-haspopup="true" aria-expanded="false">
+          All
+        </button>
+        <div id="divisionOptions" class="division-menu" hidden></div>
+      </div>
+      <label>Min teams
+        <select id="thresholdFilter">
+          <option value="1">1+</option>
+          <option value="2">2+</option>
+          <option value="3">3+</option>
+          <option value="4" selected>4+</option>
+          <option value="5">5+</option>
+          <option value="6">6+</option>
+          <option value="8">8+</option>
+          <option value="10">10+</option>
+          <option value="12">12+</option>
+          <option value="16">16+</option>
+        </select>
+      </label>
+      <label>Radius
+        <select id="radiusFilter">
+          <option value="25">25 mi</option>
+          <option value="50">50 mi</option>
+          <option value="100">100 mi</option>
+          <option value="200" selected>200 mi</option>
+        </select>
+      </label>
+      <label>Search
+        <input id="searchFilter" placeholder="Name, city, stature">
+      </label>
+      <button id="applyFilters" title="Apply filters">Apply</button>
+    </section>
+
+    <section>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Teams</th>
+              <th data-sort="start_date">Date</th>
+              <th data-sort="name">Tournament</th>
+              <th data-sort="source">Source</th>
+              <th data-sort="location">Location</th>
+              <th data-sort="distance_miles">Distance</th>
+              <th data-sort="target_team_count">Teams Registered</th>
+              <th data-sort="selected_age_confirmed_count">Teams Confirmed</th>
+              <th>Age</th>
+              <th>Status</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="tournamentRows"></tbody>
+        </table>
+      </div>
+
+      <details class="change-log">
+        <summary>Change Log</summary>
+        <div id="changes" class="changes"></div>
+      </details>
+    </section>
+  </main>
+
+  <script src="/static/app.js?v=20260429-shareable-mvp"></script>
+</body>
+</html>

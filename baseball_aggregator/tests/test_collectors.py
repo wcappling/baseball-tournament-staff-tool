@@ -1,0 +1,261 @@
+from datetime import date
+from pathlib import Path
+
+from baseball_aggregator.collectors.common import parse_date_range
+from baseball_aggregator.collectors.registry import list_collectors
+from baseball_aggregator.collectors.ncs import (
+    parse_event_list as parse_ncs,
+    parse_whos_coming,
+    parse_whos_coming_counts,
+    whos_coming_url,
+)
+from baseball_aggregator.collectors.perfect_game import parse_event_list as parse_pg
+from baseball_aggregator.collectors.perfect_game import parse_api_results as parse_pg_api
+from baseball_aggregator.collectors.perfect_game import parse_tournament_teams as parse_pg_teams
+from baseball_aggregator.collectors.usssa import parse_division_results as parse_usssa_divisions
+from baseball_aggregator.collectors.usssa import parse_event_list as parse_usssa
+from baseball_aggregator.collectors.usssa import parse_seeding_report_teams as parse_usssa_teams
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_ncs_parser():
+    tournaments = parse_ncs((FIXTURES / "ncs_sample_page1.html").read_text(encoding="utf-8"))
+    assert len(tournaments) == 2
+    assert tournaments[0].source == "ncs"
+    assert tournaments[0].source_id == "12198"
+    assert tournaments[0].location == "Cullman, AL"
+    assert tournaments[0].registered_teams == 55
+    assert "12U" in tournaments[0].age_divisions
+
+
+def test_ncs_whos_coming_counts_are_aggregated_by_age():
+    html = (FIXTURES / "ncs_whoscoming_sample.html").read_text(encoding="utf-8")
+    counts = parse_whos_coming_counts(html)
+    assert counts["11U OPEN"] == 2
+    assert counts["11U"] == 2
+    assert counts["12U D2"] == 3
+    assert counts["12U OPEN"] == 2
+    assert counts["12U"] == 5
+
+
+def test_ncs_whos_coming_extracts_team_rows_when_registration_is_closed():
+    html = (FIXTURES / "ncs_whoscoming_sample.html").read_text(encoding="utf-8")
+    counts, teams = parse_whos_coming(html)
+    assert counts["12U OPEN"] == 2
+    assert [team["team_name"] for team in teams["12U OPEN"]] == ["Team D", "Team E"]
+    assert teams["12U OPEN"][0]["record"] == "12-3-0"
+    assert teams["12U OPEN"][0]["confirmed"] is True
+    assert teams["12U OPEN"][1]["confirmed"] is False
+    assert teams["12U OPEN"][0]["detail_url"].startswith("https://www.playncs.com/baseball/Teams/Details/4/")
+    assert len(teams["12U"]) == 5
+    assert all(team["team_name"] != "Open" for team in teams["12U"])
+
+
+def test_ncs_whos_coming_url_from_detail_url():
+    tournaments = parse_ncs((FIXTURES / "ncs_sample_page1.html").read_text(encoding="utf-8"))
+    assert whos_coming_url(tournaments[0]) == (
+        "https://www.playncs.com/baseball/Events/WhosComing/12198/"
+        "2025-ncs-southeast-top-gun-super-nit"
+    )
+
+
+def test_usssa_parser():
+    tournaments = parse_usssa((FIXTURES / "usssa_sample.html").read_text(encoding="utf-8"))
+    assert len(tournaments) == 1
+    assert tournaments[0].source == "usssa"
+    assert tournaments[0].registered_teams == 8
+    assert "12U" in tournaments[0].age_divisions
+
+
+def test_usssa_api_results_parser():
+    payload = {
+        "results": [
+            {
+                "ID": 407473,
+                "event_name": "Bat To The Future ($50)",
+                "start_date": "2026-05-01T00:00:00",
+                "end_date": "2026-05-03T00:00:00",
+                "eventType": "Pool Play into 3GG",
+                "eventDivisionsAll": "10U%Open|AA#12U%Open|AA#14U%AAA",
+                "eventDirector": "Clay Richey - MS BB",
+                "teamCount": "91",
+                "stature": "USSSA NIT",
+                "eventLocation": "OXFORD",
+                "stateABR": "MS",
+            }
+        ]
+    }
+    tournaments = parse_usssa(__import__("json").dumps(payload))
+    assert tournaments[0].source_id == "407473"
+    assert tournaments[0].detail_url == "https://usssa.com/baseball/event_home/?eventID=407473"
+    assert tournaments[0].location == "OXFORD, MS"
+    assert tournaments[0].start_date == date(2026, 5, 1)
+    assert tournaments[0].registered_teams == 91
+    assert "12U OPEN" in tournaments[0].age_divisions
+
+
+def test_usssa_division_counts_include_approved_entries():
+    divisions = parse_usssa_divisions(
+        [
+            {"class": "12Op", "maxTeams": 12, "teamEntered": 12, "teamApproved": 10, "teamPending": 2, "minimum_number_games": 3, "entryFee": 50, "city": "Jackson", "eventFormat": "Pool to 3GG"},
+            {"class": "12AA", "maxTeams": 12, "teamEntered": 20, "teamApproved": 18, "teamPending": 2, "minimum_number_games": 3, "entryFee": 50, "city": "Jackson", "eventFormat": "Pool to 3GG"},
+            {"class": "14AAA60/90", "teamEntered": 9, "teamApproved": 9, "eventFormat": "Pool to 3GG"},
+        ]
+    )
+    assert divisions["counts"]["12U OPEN"] == 12
+    assert divisions["counts"]["12U AA"] == 20
+    assert divisions["counts"]["12U"] == 32
+    assert divisions["approved"]["12U"] == 28
+    assert divisions["counts"]["14U AAA 60/90"] == 9
+    assert divisions["details"]["12U OPEN"]["max_entries"] == 12
+    assert divisions["details"]["12U OPEN"]["pending_entries"] == 2
+    assert divisions["details"]["12U OPEN"]["min_games"] == 3
+    assert divisions["details"]["12U OPEN"]["entry_fee"] == 50
+    assert divisions["details"]["12U OPEN"]["location"] == "Jackson"
+
+
+def test_usssa_seeding_report_team_parser():
+    teams = parse_usssa_teams(
+        {
+            "seedingReport": {
+                "notAvailable": False,
+                "tournaments": [
+                    {
+                        "teamid": 3334794,
+                        "teamcity": "Parsons",
+                        "ManagerName": "Bryan Barnes",
+                        "TeamState": "TN",
+                        "TeamClass": "BBboys12AA",
+                        "points": 50,
+                        "Rating": 177,
+                        "OverallWins": 0,
+                        "OverallLoses": 3,
+                        "Wins": 0,
+                        "Loses": 2,
+                        "teamname": "Panthers Baseball",
+                    }
+                ],
+            }
+        },
+        "12U AA",
+    )
+    assert teams == [
+        {
+            "number": 1,
+            "team_name": "Panthers Baseball",
+            "confirmed": True,
+            "division": "12U AA",
+            "city_state": "TN - Parsons",
+            "record": "0-3",
+            "in_class_record": "0-2",
+            "overall_record": "0-3",
+            "team_class": "BBboys12AA",
+            "manager_name": "Bryan Barnes",
+            "points": 50,
+            "rating": 177,
+            "detail_url": "https://usssa.com/baseball/teamHome/?teamID=3334794",
+        }
+    ]
+
+
+def test_perfect_game_parser():
+    tournaments = parse_pg((FIXTURES / "perfect_game_sample.html").read_text(encoding="utf-8"))
+    assert len(tournaments) == 1
+    assert tournaments[0].source == "perfect_game"
+    assert tournaments[0].registered_teams == 12
+    assert "12U" in tournaments[0].age_divisions
+
+
+def test_perfect_game_api_results_parser():
+    tournaments = parse_pg_api(
+        [
+            {
+                "eventgroupid": 22417,
+                "eventschedulename": "2026 PG Southeast Spring Season Opener",
+                "eventgrouplogo": "https://example.com/logo.png",
+                "total_teams": 10,
+                "eventprimaryballparkcity": "Marietta",
+                "eventprimaryballparkstate": "GA",
+                "circuit": "Signature",
+                "events": [
+                    {
+                        "eventid": 137367,
+                        "eventname": "2026 12U PG Southeast Spring Season Opener (MAJOR)",
+                        "eventdivision": "12U",
+                        "eventclassification": "Major",
+                        "countteams": 6,
+                        "eventtype": "PG Youth Tournament",
+                        "eventstartdate": "2026-02-20",
+                        "eventenddate": "2026-02-22",
+                        "eventprimaryballparkcity": "Marietta",
+                        "eventprimaryballparkstate": "GA",
+                        "eventprimaryballparkname": "East Cobb Complex",
+                        "director": "Southeast Youth",
+                    },
+                    {
+                        "eventid": 137368,
+                        "eventname": "2026 12U PG Southeast Spring Season Opener (MINOR)",
+                        "eventdivision": "12U",
+                        "eventclassification": "Minor",
+                        "countteams": 4,
+                        "eventtype": "PG Youth Tournament",
+                        "eventstartdate": "2026-02-20",
+                        "eventenddate": "2026-02-22",
+                        "eventprimaryballparkcity": "Marietta",
+                        "eventprimaryballparkstate": "GA",
+                        "eventprimaryballparkname": "East Cobb Complex",
+                    },
+                ],
+            }
+        ]
+    )
+    assert len(tournaments) == 1
+    assert tournaments[0].source_id == "22417"
+    assert tournaments[0].location == "Marietta, GA"
+    assert tournaments[0].registered_teams == 10
+    assert tournaments[0].division_team_counts["12U MAJOR"] == 6
+    assert tournaments[0].division_team_counts["12U MINOR"] == 4
+    assert tournaments[0].division_team_counts["12U"] == 10
+    assert tournaments[0].division_details["12U MAJOR"]["event_id"] == 137367
+
+
+def test_perfect_game_team_parser():
+    teams = parse_pg_teams(
+        """
+        <table>
+          <tr><th>National Rank</th><th>Place</th><th>Team</th><th>Classification</th><th>From</th><th>Coach</th></tr>
+          <tr>
+            <td>1</td><td></td>
+            <td><a href="Tournaments/Teams/Default.aspx?team=1011796">Wildcatters 12U Elite</a> (29-0-0 in 2026)</td>
+            <td>12Major</td><td>Houston, TX</td><td>Cody Farr</td>
+          </tr>
+        </table>
+        """,
+        "12U MAJOR",
+    )
+    assert teams == [
+        {
+            "number": 1,
+            "team_name": "Wildcatters 12U Elite",
+            "confirmed": False,
+            "division": "12U MAJOR",
+            "city_state": "Houston, TX",
+            "record": "29-0-0",
+            "team_class": "12Major",
+            "national_rank": "1",
+            "manager_name": "Cody Farr",
+            "detail_url": "https://www.perfectgame.org/Tournaments/Teams/Default.aspx?team=1011796",
+        }
+    ]
+
+
+def test_planned_sources_are_registered():
+    assert set(list_collectors()) == {"ncs", "usssa", "perfect_game"}
+
+
+def test_date_parsing():
+    today = date(2026, 4, 22)
+    assert parse_date_range("Apr 25", today) == (date(2026, 4, 25), date(2026, 4, 25))
+    assert parse_date_range("May 16-17", today) == (date(2026, 5, 16), date(2026, 5, 17))
+    assert parse_date_range("Dec 30-Jan 2", today) == (date(2026, 12, 30), date(2027, 1, 2))

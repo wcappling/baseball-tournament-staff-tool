@@ -1,0 +1,560 @@
+from __future__ import annotations
+
+import json
+import re
+import sqlite3
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from baseball_aggregator.config import get_db_path
+from baseball_aggregator.distance import estimate_distance_miles
+from baseball_aggregator.models import DEFAULT_SETTINGS, Tournament
+
+ROOT = Path(__file__).resolve().parent
+DATA_DIR = ROOT / "data"
+DB_PATH = get_db_path()
+
+
+def connect(db_path: Path | None = None) -> sqlite3.Connection:
+    db_path = db_path or get_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+def init_db(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS tournaments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            detail_url TEXT NOT NULL,
+            location TEXT,
+            director TEXT,
+            start_date TEXT,
+            end_date TEXT,
+            age_divisions TEXT NOT NULL DEFAULT '[]',
+            registered_teams INTEGER,
+            division_team_counts TEXT NOT NULL DEFAULT '{}',
+            division_confirmed_counts TEXT NOT NULL DEFAULT '{}',
+            division_details TEXT NOT NULL DEFAULT '{}',
+            division_teams TEXT NOT NULL DEFAULT '{}',
+            team_count_scope TEXT NOT NULL DEFAULT 'event',
+            stature TEXT,
+            format TEXT,
+            tags TEXT NOT NULL DEFAULT '[]',
+            logo_url TEXT,
+            distance_miles REAL,
+            fetched_at TEXT NOT NULL,
+            first_seen_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL,
+            UNIQUE(source, source_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS shortlist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER NOT NULL UNIQUE,
+            status TEXT NOT NULL DEFAULT 'Watch',
+            priority INTEGER NOT NULL DEFAULT 3,
+            notes TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER,
+            source TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            field TEXT NOT NULL,
+            old_value TEXT,
+            new_value TEXT,
+            detected_at TEXT NOT NULL,
+            staff_visible INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY(tournament_id) REFERENCES tournaments(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS refresh_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            finished_at TEXT,
+            status TEXT NOT NULL,
+            message TEXT NOT NULL DEFAULT '',
+            tournaments_seen INTEGER NOT NULL DEFAULT 0
+        );
+        """
+    )
+    _ensure_column(conn, "tournaments", "division_teams", "TEXT NOT NULL DEFAULT '{}'")
+    _ensure_column(conn, "tournaments", "division_confirmed_counts", "TEXT NOT NULL DEFAULT '{}'")
+    _ensure_column(conn, "tournaments", "division_details", "TEXT NOT NULL DEFAULT '{}'")
+    for key, value in DEFAULT_SETTINGS.items():
+        conn.execute(
+            "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)",
+            (key, json.dumps(value)),
+        )
+    conn.commit()
+
+
+def get_settings(conn: sqlite3.Connection) -> dict[str, Any]:
+    init_db(conn)
+    values = dict(DEFAULT_SETTINGS)
+    for row in conn.execute("SELECT key, value FROM settings"):
+        values[row["key"]] = json.loads(row["value"])
+    return values
+
+
+def update_settings(conn: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, Any]:
+    current = get_settings(conn)
+    for key, value in payload.items():
+        if key not in DEFAULT_SETTINGS:
+            continue
+        current[key] = value
+        conn.execute(
+            "INSERT INTO settings(key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, json.dumps(value)),
+        )
+    conn.commit()
+    return current
+
+
+def upsert_tournaments(conn: sqlite3.Connection, tournaments: list[Tournament]) -> dict[str, int]:
+    init_db(conn)
+    inserted = 0
+    updated = 0
+    now = datetime.now(UTC).isoformat()
+    tracked_fields = [
+        "name",
+        "start_date",
+        "end_date",
+        "location",
+        "registered_teams",
+        "division_team_counts",
+        "division_confirmed_counts",
+        "division_details",
+        "division_teams",
+        "stature",
+    ]
+
+    for tournament in tournaments:
+        if not tournament.source_id:
+            continue
+        existing = conn.execute(
+            "SELECT * FROM tournaments WHERE source = ? AND source_id = ?",
+            (tournament.source, tournament.source_id),
+        ).fetchone()
+        payload = _tournament_payload(tournament)
+
+        if existing is None:
+            inserted += 1
+            columns = ", ".join(payload)
+            placeholders = ", ".join("?" for _ in payload)
+            cursor = conn.execute(
+                f"INSERT INTO tournaments ({columns}, first_seen_at, last_seen_at) VALUES ({placeholders}, ?, ?)",
+                [*payload.values(), now, now],
+            )
+            conn.execute(
+                "INSERT INTO changes(tournament_id, source, source_id, field, old_value, new_value, detected_at) "
+                "VALUES (?, ?, ?, 'created', NULL, ?, ?)",
+                (cursor.lastrowid, tournament.source, tournament.source_id, tournament.name, now),
+            )
+        else:
+            updated += 1
+            set_clause = ", ".join(f"{column} = ?" for column in payload)
+            conn.execute(
+                f"UPDATE tournaments SET {set_clause}, last_seen_at = ? WHERE id = ?",
+                [*payload.values(), now, existing["id"]],
+            )
+            for field in tracked_fields:
+                old_value = existing[field]
+                new_value = payload[field]
+                if old_value != new_value:
+                    conn.execute(
+                        "INSERT INTO changes(tournament_id, source, source_id, field, old_value, new_value, detected_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (existing["id"], tournament.source, tournament.source_id, field, old_value, new_value, now),
+                    )
+
+    conn.commit()
+    return {"inserted": inserted, "updated": updated, "seen": inserted + updated}
+
+
+def search_tournaments(conn: sqlite3.Connection, filters: dict[str, Any]) -> list[dict[str, Any]]:
+    init_db(conn)
+    settings = get_settings(conn)
+    target_age = filters.get("age") or settings["target_age_division"]
+    selected_divisions = _normalize_selected_divisions(filters.get("division"))
+    threshold = int(filters.get("threshold") or settings["team_count_threshold"])
+    radius_miles = int(filters.get("radius_miles") or settings["radius_miles"])
+
+    clauses = []
+    params: list[Any] = []
+    if source := filters.get("source"):
+        clauses.append("t.source = ?")
+        params.append(source)
+    if start_after := filters.get("start_after"):
+        clauses.append("(t.start_date IS NULL OR t.start_date >= ?)")
+        params.append(start_after)
+    if search := filters.get("q"):
+        clauses.append("(t.name LIKE ? OR t.location LIKE ? OR t.stature LIKE ?)")
+        params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
+
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    rows = conn.execute(
+        f"""
+        SELECT t.*, s.status AS shortlist_status, s.priority AS shortlist_priority, s.notes AS shortlist_notes
+        FROM tournaments t
+        LEFT JOIN shortlist s ON s.tournament_id = t.id
+        {where}
+        ORDER BY COALESCE(t.registered_teams, 0) DESC, t.start_date ASC
+        """,
+        params,
+    ).fetchall()
+    api_rows = [_row_to_api(row, target_age, threshold, selected_divisions) for row in rows]
+    if age := filters.get("age"):
+        api_rows = [row for row in api_rows if _has_exact_age(row["age_divisions"], age)]
+    if selected_divisions:
+        api_rows = [
+            row
+            for row in api_rows
+            if any(_has_exact_age(row["age_divisions"], division) for division in selected_divisions)
+        ]
+    if radius_miles < settings["radius_miles"]:
+        api_rows = [
+            row
+            for row in api_rows
+            if row["distance_miles"] is not None and row["distance_miles"] <= radius_miles
+        ]
+    return api_rows
+
+
+def get_tournament_api(
+    conn: sqlite3.Connection,
+    tournament_id: int,
+    target_age: str,
+    threshold: int,
+    selected_divisions: list[str] | None = None,
+) -> dict[str, Any] | None:
+    init_db(conn)
+    row = conn.execute(
+        """
+        SELECT t.*, s.status AS shortlist_status, s.priority AS shortlist_priority, s.notes AS shortlist_notes
+        FROM tournaments t
+        LEFT JOIN shortlist s ON s.tournament_id = t.id
+        WHERE t.id = ?
+        """,
+        (tournament_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _row_to_api(row, target_age, threshold, selected_divisions)
+
+
+def update_tournament_division_teams(
+    conn: sqlite3.Connection,
+    tournament_id: int,
+    division_teams: dict[str, list[dict[str, Any]]],
+) -> None:
+    init_db(conn)
+    now = datetime.now(UTC).isoformat()
+    conn.execute(
+        "UPDATE tournaments SET division_teams = ?, last_seen_at = ? WHERE id = ?",
+        (json.dumps(division_teams), now, tournament_id),
+    )
+    conn.commit()
+
+
+def list_divisions(conn: sqlite3.Connection, age: str | None = None, source: str | None = None) -> list[str]:
+    init_db(conn)
+    clauses = []
+    params: list[Any] = []
+    if source:
+        clauses.append("source = ?")
+        params.append(source)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    rows = conn.execute(
+        f"SELECT age_divisions, division_team_counts, division_details FROM tournaments {where}",
+        params,
+    ).fetchall()
+
+    values: set[str] = set()
+    for row in rows:
+        for division in json.loads(row["age_divisions"] or "[]"):
+            _add_filter_division(values, str(division), age)
+        for division in json.loads(row["division_team_counts"] or "{}"):
+            _add_filter_division(values, str(division), age)
+        for division in json.loads(row["division_details"] or "{}"):
+            _add_filter_division(values, str(division), age)
+    return sorted(values, key=_division_sort_key)
+
+
+def get_changes(conn: sqlite3.Connection, limit: int = 50) -> list[dict[str, Any]]:
+    init_db(conn)
+    rows = conn.execute(
+        """
+        SELECT c.*, t.name AS tournament_name
+        FROM changes c
+        LEFT JOIN tournaments t ON t.id = c.tournament_id
+        WHERE c.staff_visible = 1
+        ORDER BY c.detected_at DESC, c.id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def upsert_shortlist(conn: sqlite3.Connection, tournament_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    init_db(conn)
+    now = datetime.now(UTC).isoformat()
+    status = payload.get("status") or "Watch"
+    priority = int(payload.get("priority") or 3)
+    notes = payload.get("notes") or ""
+    conn.execute(
+        """
+        INSERT INTO shortlist(tournament_id, status, priority, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(tournament_id) DO UPDATE SET
+            status = excluded.status,
+            priority = excluded.priority,
+            notes = excluded.notes,
+            updated_at = excluded.updated_at
+        """,
+        (tournament_id, status, priority, notes, now, now),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM shortlist WHERE tournament_id = ?", (tournament_id,)).fetchone()
+    return dict(row)
+
+
+def record_refresh_start(conn: sqlite3.Connection, source: str) -> int:
+    init_db(conn)
+    now = datetime.now(UTC).isoformat()
+    cursor = conn.execute(
+        "INSERT INTO refresh_runs(source, started_at, status) VALUES (?, ?, 'running')",
+        (source, now),
+    )
+    conn.commit()
+    return int(cursor.lastrowid)
+
+
+def record_refresh_finish(
+    conn: sqlite3.Connection,
+    run_id: int,
+    status: str,
+    message: str = "",
+    tournaments_seen: int = 0,
+) -> None:
+    conn.execute(
+        "UPDATE refresh_runs SET finished_at = ?, status = ?, message = ?, tournaments_seen = ? WHERE id = ?",
+        (datetime.now(UTC).isoformat(), status, message, tournaments_seen, run_id),
+    )
+    conn.commit()
+
+
+def latest_refresh_runs(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    init_db(conn)
+    rows = conn.execute(
+        "SELECT * FROM refresh_runs ORDER BY started_at DESC, id DESC LIMIT 20"
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def _tournament_payload(tournament: Tournament) -> dict[str, Any]:
+    return {
+        "source": tournament.source,
+        "source_id": tournament.source_id,
+        "name": tournament.name,
+        "detail_url": tournament.detail_url,
+        "location": tournament.location,
+        "director": tournament.director,
+        "start_date": tournament.start_date.isoformat() if tournament.start_date else None,
+        "end_date": tournament.end_date.isoformat() if tournament.end_date else None,
+        "age_divisions": json.dumps(tournament.age_divisions),
+        "registered_teams": tournament.registered_teams,
+        "division_team_counts": json.dumps(tournament.division_team_counts),
+        "division_confirmed_counts": json.dumps(tournament.division_confirmed_counts),
+        "division_details": json.dumps(tournament.division_details),
+        "division_teams": json.dumps(tournament.division_teams),
+        "team_count_scope": tournament.team_count_scope,
+        "stature": tournament.stature,
+        "format": tournament.format,
+        "tags": json.dumps(tournament.tags),
+        "logo_url": tournament.logo_url,
+        "distance_miles": tournament.distance_miles
+        if tournament.distance_miles is not None
+        else estimate_distance_miles(tournament.location),
+        "fetched_at": tournament.fetched_at.isoformat(),
+    }
+
+
+def _row_to_api(
+    row: sqlite3.Row,
+    target_age: str,
+    threshold: int,
+    selected_divisions: list[str] | None = None,
+) -> dict[str, Any]:
+    data = dict(row)
+    age_divisions = json.loads(data["age_divisions"] or "[]")
+    division_counts = json.loads(data["division_team_counts"] or "{}")
+    division_confirmed_counts = json.loads(data["division_confirmed_counts"] or "{}")
+    division_details = json.loads(data["division_details"] or "{}")
+    division_teams = json.loads(data.get("division_teams") or "{}")
+    tags = json.loads(data["tags"] or "[]")
+    selected_divisions = _selected_division_summaries(
+        target_age,
+        division_counts,
+        division_confirmed_counts,
+        division_details,
+        division_teams,
+        selected_divisions,
+    )
+    target_count = sum(item["registered"] for item in selected_divisions)
+    selected_teams = [
+        team
+        for division in selected_divisions
+        for team in division_teams.get(division["division"], [])
+    ]
+    selected_confirmed_count = sum(item["confirmed"] for item in selected_divisions)
+    if selected_divisions and not selected_teams and division_teams.get(target_age):
+        selected_teams = division_teams[target_age]
+        selected_confirmed_count = sum(1 for team in selected_teams if team.get("confirmed"))
+    if not selected_divisions:
+        target_count = division_counts.get(target_age, data["registered_teams"])
+        selected_teams = division_teams.get(target_age, [])
+        if selected_teams:
+            target_count = len(selected_teams)
+        selected_confirmed_count = (
+            sum(1 for team in selected_teams if team.get("confirmed"))
+            if selected_teams
+            else int(division_confirmed_counts.get(target_age, 0) or 0)
+        )
+    count_scope = "division" if target_age in division_counts else data["team_count_scope"]
+    distance_miles = data["distance_miles"]
+    if distance_miles is None:
+        distance_miles = estimate_distance_miles(data["location"])
+    data.update(
+        {
+            "age_divisions": age_divisions,
+            "division_team_counts": division_counts,
+            "division_confirmed_counts": division_confirmed_counts,
+            "division_details": division_details,
+            "division_teams": division_teams,
+            "selected_age_divisions": selected_divisions,
+            "selected_age_teams": selected_teams,
+            "selected_age_confirmed_count": selected_confirmed_count,
+            "tags": tags,
+            "target_age_division": target_age,
+            "target_team_count": target_count,
+            "team_count_scope": count_scope,
+            "count_warning": count_scope != "division",
+            "meets_team_threshold": target_count is not None and target_count >= threshold,
+            "distance_miles": distance_miles,
+        }
+    )
+    return data
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def _has_exact_age(age_divisions: list[str], selected_age: str) -> bool:
+    selected = selected_age.upper()
+    for division in age_divisions:
+        value = str(division).upper()
+        if value == selected:
+            return True
+        if value.startswith(f"{selected} "):
+            return True
+    return False
+
+
+def _add_filter_division(values: set[str], division: str, selected_age: str | None = None) -> None:
+    value = division.strip()
+    if not value:
+        return
+    age_match = re.match(r"^(\d{1,2}U)\b", value, re.IGNORECASE)
+    if not age_match:
+        return
+    age = age_match.group(1).upper()
+    if selected_age and not value.upper().startswith(f"{selected_age.upper()} "):
+        return
+    if value.upper() == age:
+        return
+    values.add(value)
+
+
+def _normalize_selected_divisions(value: Any) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, str):
+        raw_values = [value]
+    else:
+        raw_values = list(value)
+    divisions = []
+    for raw in raw_values:
+        for item in str(raw).split(","):
+            item = item.strip()
+            if item and item not in divisions:
+                divisions.append(item)
+    return divisions
+
+
+def _division_sort_key(value: str) -> tuple[int, str]:
+    match = re.match(r"^(\d{1,2})U\b(.*)$", value, re.IGNORECASE)
+    if not match:
+        return (99, value)
+    return (int(match.group(1)), match.group(2).strip())
+
+
+def _selected_division_summaries(
+    selected_age: str,
+    division_counts: dict[str, int],
+    division_confirmed_counts: dict[str, int],
+    division_details: dict[str, dict[str, Any]],
+    division_teams: dict[str, list[dict[str, Any]]],
+    selected_divisions: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    selected = selected_age.upper()
+    selected_division_values = {division.upper() for division in selected_divisions or []}
+    summaries = []
+    for division in sorted(division_counts):
+        value = division.upper()
+        if value == selected:
+            continue
+        if not value.startswith(f"{selected} "):
+            continue
+        if selected_division_values and value not in selected_division_values:
+            continue
+
+        teams = division_teams.get(division, [])
+        registered = len(teams) if teams else int(division_counts[division] or 0)
+        confirmed = (
+            sum(1 for team in teams if team.get("confirmed"))
+            if teams
+            else int(division_confirmed_counts.get(division, 0) or 0)
+        )
+        summaries.append(
+            {
+                "division": division,
+                "registered": registered,
+                "confirmed": confirmed,
+                "details": division_details.get(division, {}),
+            }
+        )
+    return summaries
