@@ -99,6 +99,11 @@ body.login-page {
   gap: 8px;
 }
 
+
+#logoutBtn {
+  min-width: 88px;
+}
+
 h1,
 h2,
 p {
@@ -607,5 +612,47 @@ textarea {
 
   .team-list {
     min-width: 560px;
+  }
+}
+
+
+@media (max-width: 480px) {
+  .topbar-actions {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .topbar-actions button {
+    flex: 1 1 110px;
+    padding-inline: 9px;
+  }
+
+  #logoutBtn {
+    flex: 0 0 44px;
+    min-width: 44px;
+    padding-inline: 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0;
+  }
+
+  #logoutBtn::before {
+    content: "↪";
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  #logoutBtn .logout-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    border: 0;
+    white-space: nowrap;
   }
 }
