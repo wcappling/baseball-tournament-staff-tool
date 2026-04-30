@@ -518,6 +518,10 @@ textarea {
   .division-breakdown {
     grid-template-columns: 1fr;
   }
+
+  .table-wrap > table > tbody > tr > td textarea[data-id] {
+    min-width: 160px;
+  }
 }
 
 @media (max-width: 700px) {
