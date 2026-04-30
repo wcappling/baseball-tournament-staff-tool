@@ -517,14 +517,6 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  .col-source,
-  .col-distance {
-    display: none;
-  }
-
-  table {
-    min-width: 930px;
-  }
 }
 
 @media (max-width: 700px) {
@@ -565,6 +557,11 @@ textarea {
 
   table {
     min-width: 0;
+  }
+
+  .col-source,
+  .col-distance {
+    display: none;
   }
 
   .table-wrap > table > thead {
