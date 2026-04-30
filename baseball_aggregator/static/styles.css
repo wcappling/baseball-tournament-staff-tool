@@ -289,8 +289,28 @@ a:focus-visible {
 }
 
 .table-wrap {
+  position: relative;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.table-wrap::after {
+  content: "";
+  position: sticky;
+  right: 0;
+  top: 0;
+  width: 28px;
+  height: 100%;
+  display: block;
+  margin-left: auto;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease;
+  background: linear-gradient(to left, var(--surface), rgb(0 0 0 / 0%));
+}
+
+.table-wrap.can-scroll-right::after {
+  opacity: 0.95;
 }
 
 table {

@@ -10,11 +10,28 @@ const searchFilter = document.querySelector("#searchFilter");
 const profileEl = document.querySelector("#profile");
 const themeToggle = document.querySelector("#themeToggle");
 const logoutBtn = document.querySelector("#logoutBtn");
+const tableWrap = document.querySelector(".table-wrap");
 
 let tournaments = [];
 let sortKey = "target_team_count";
 let sortDirection = -1;
 const THEME_KEY = "staff_tool_theme";
+let scrollHintRaf = null;
+
+function updateTournamentTableScrollHint() {
+  if (!tableWrap) return;
+  const maxScrollLeft = tableWrap.scrollWidth - tableWrap.clientWidth;
+  const canScrollRight = maxScrollLeft > 1 && tableWrap.scrollLeft < maxScrollLeft - 1;
+  tableWrap.classList.toggle("can-scroll-right", canScrollRight);
+}
+
+function queueTournamentTableScrollHintUpdate() {
+  if (scrollHintRaf !== null) return;
+  scrollHintRaf = window.requestAnimationFrame(() => {
+    scrollHintRaf = null;
+    updateTournamentTableScrollHint();
+  });
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -298,6 +315,7 @@ function renderRows() {
   document.querySelectorAll("textarea[data-id]").forEach((textarea) => {
     textarea.addEventListener("blur", () => saveShortlist(textarea.dataset.id));
   });
+  queueTournamentTableScrollHintUpdate();
 }
 
 async function loadTournamentTeams(item) {
@@ -501,6 +519,20 @@ document.querySelectorAll("th[data-sort]").forEach((th) => {
     renderRows();
   });
 });
+
+if (tableWrap) {
+  tableWrap.addEventListener("scroll", queueTournamentTableScrollHintUpdate, { passive: true });
+  window.addEventListener("resize", queueTournamentTableScrollHintUpdate);
+  const tableResizeObserver = new ResizeObserver(queueTournamentTableScrollHintUpdate);
+  tableResizeObserver.observe(tableWrap);
+  const tableElement = tableWrap.querySelector("table");
+  if (tableElement) {
+    tableResizeObserver.observe(tableElement);
+    const tableMutationObserver = new MutationObserver(queueTournamentTableScrollHintUpdate);
+    tableMutationObserver.observe(tableElement, { childList: true, subtree: true });
+  }
+  queueTournamentTableScrollHintUpdate();
+}
 
 initTheme();
 loadSettings().then(loadDivisions).then(loadTournaments).then(loadChanges);
