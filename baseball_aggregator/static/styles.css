@@ -549,6 +549,14 @@ textarea {
   }
 }
 
+
+@media (max-width: 700px) {
+  .table-wrap > table .col-source,
+  .table-wrap > table .col-distance {
+    display: none;
+  }
+}
+
 @media (max-width: 700px) {
   button,
   .select-like,

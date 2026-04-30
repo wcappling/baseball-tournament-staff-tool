@@ -258,9 +258,9 @@ function renderRows() {
         <div class="name"><a href="${escapeHtml(item.detail_url)}" target="_blank" rel="noreferrer">${escapeHtml(item.name)}</a></div>
         <div class="subtle">${escapeHtml(item.stature || "")} ${escapeHtml(item.format || "")}</div>
       </td>
-      <td>${sourceLabel(item.source)}</td>
+      <td class="col-source">${sourceLabel(item.source)}</td>
       <td>${escapeHtml(item.location || "TBD")}</td>
-      <td>${formatDistance(item.distance_miles)}</td>
+      <td class="col-distance">${formatDistance(item.distance_miles)}</td>
       <td>${renderRegisteredCounts(item)}</td>
       <td>${renderConfirmedCounts(item)}</td>
       <td>${renderSelectedAgeDivisions(item)}</td>
