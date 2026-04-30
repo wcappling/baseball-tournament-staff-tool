@@ -516,6 +516,15 @@ textarea {
   .division-breakdown {
     grid-template-columns: 1fr;
   }
+
+  .col-source,
+  .col-distance {
+    display: none;
+  }
+
+  table {
+    min-width: 930px;
+  }
 }
 
 @media (max-width: 700px) {
