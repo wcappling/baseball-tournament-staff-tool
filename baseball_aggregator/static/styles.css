@@ -53,6 +53,7 @@ body {
   color: var(--ink);
   background: var(--page);
   font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.4;
   transition: background-color 150ms ease, color 150ms ease;
 }
 
@@ -120,12 +121,14 @@ h2 {
 }
 
 main {
+  width: min(100%, 1400px);
+  margin: 0 auto;
   padding: 16px;
 }
 
 .toolbar {
   display: grid;
-  grid-template-columns: 150px 100px 170px 115px 115px minmax(220px, 1fr) auto;
+  grid-template-columns: repeat(6, minmax(120px, 1fr)) auto;
   gap: 10px;
   align-items: end;
   margin-bottom: 14px;
@@ -281,6 +284,7 @@ a:focus-visible {
 
 .table-wrap {
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
@@ -474,17 +478,110 @@ textarea {
 }
 
 @media (max-width: 900px) {
-  .topbar,
-  .toolbar {
+  h1 {
+    font-size: 20px;
+  }
+
+  .topbar {
     display: grid;
     grid-template-columns: 1fr;
+    align-items: start;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .topbar-actions {
+    justify-content: start;
+    flex-wrap: wrap;
+  }
+
+  .topbar-actions button {
+    flex: 1 1 140px;
+  }
+
+  .toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .toolbar > * {
+    min-width: 0;
+  }
+
+  #applyFilters {
+    grid-column: span 2;
   }
 
   .division-breakdown {
     grid-template-columns: 1fr;
   }
+}
 
-  .topbar-actions {
-    justify-content: start;
+@media (max-width: 700px) {
+  main {
+    padding: 12px;
+  }
+
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  #applyFilters {
+    grid-column: auto;
+  }
+
+  table {
+    min-width: 0;
+  }
+
+  .table-wrap > table > thead {
+    display: none;
+  }
+
+  .table-wrap > table > tbody > tr:not(.team-details-row) {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td {
+    display: grid;
+    grid-template-columns: minmax(108px, 36%) 1fr;
+    gap: 8px;
+    padding: 0;
+    border-bottom: 0;
+    align-items: start;
+  }
+
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td::before {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    content: "";
+  }
+
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(1)::before { content: "Teams"; }
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(2)::before { content: "Date"; }
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(3)::before { content: "Tournament"; }
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(4)::before { content: "Source"; }
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(5)::before { content: "Location"; }
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(6)::before { content: "Distance"; }
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(7)::before { content: "Teams Reg"; }
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(8)::before { content: "Teams Conf"; }
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(9)::before { content: "Age"; }
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(10)::before { content: "Status"; }
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(11)::before { content: "Notes"; }
+
+  .status-select,
+  textarea {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .team-list {
+    min-width: 560px;
   }
 }
