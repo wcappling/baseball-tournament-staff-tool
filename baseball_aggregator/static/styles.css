@@ -183,6 +183,7 @@ button {
   padding: 7px 12px;
   background: var(--surface);
   color: var(--ink);
+  touch-action: manipulation;
 }
 
 .division-filter {
@@ -518,6 +519,29 @@ textarea {
 }
 
 @media (max-width: 700px) {
+  button,
+  .select-like,
+  .teams-toggle,
+  .status-select,
+  select,
+  input {
+    min-height: 44px;
+  }
+
+  .teams-toggle {
+    min-width: 44px;
+  }
+
+  .division-option {
+    min-height: 44px;
+    padding-block: 8px;
+  }
+
+  .division-option input {
+    width: 20px;
+    height: 20px;
+  }
+
   main {
     padding: 12px;
   }
