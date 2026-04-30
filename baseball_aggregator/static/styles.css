@@ -652,6 +652,15 @@ textarea {
 
 
 @media (max-width: 480px) {
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td::before {
+    display: block;
+  }
+
   .topbar-actions {
     width: 100%;
     gap: 6px;
