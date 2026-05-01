@@ -296,6 +296,7 @@ function renderRows() {
     detailsTr.innerHTML = `<td colspan="11">${renderTeamRows(item)}</td>`;
     rowsEl.appendChild(tr);
     rowsEl.appendChild(detailsTr);
+    applyStatusClass(tr, item.shortlist_status || "Watch");
   }
 
   document.querySelectorAll(".teams-toggle").forEach((button) => {
@@ -325,12 +326,27 @@ function renderRows() {
     });
   });
   document.querySelectorAll(".status-select").forEach((select) => {
-    select.addEventListener("change", () => saveShortlist(select.dataset.id));
+    select.addEventListener("change", () => {
+      const row = select.closest("tr");
+      if (row) {
+        applyStatusClass(row, select.value);
+      }
+      saveShortlist(select.dataset.id);
+    });
   });
   document.querySelectorAll("textarea[data-id]").forEach((textarea) => {
     textarea.addEventListener("blur", () => saveShortlist(textarea.dataset.id));
   });
   queueTournamentTableScrollHintUpdate();
+}
+
+function statusClass(status) {
+  return `status-${String(status || "Watch").toLowerCase()}`;
+}
+
+function applyStatusClass(row, status) {
+  row.classList.remove("status-watch", "status-interested", "status-registered", "status-declined");
+  row.classList.add(statusClass(status));
 }
 
 async function loadTournamentTeams(item) {
