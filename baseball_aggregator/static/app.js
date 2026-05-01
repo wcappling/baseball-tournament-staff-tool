@@ -199,6 +199,19 @@ function renderRegisteredCounts(item) {
   }).join("");
 }
 
+
+function mobileRegisteredSummary(item) {
+  const divisions = item.selected_age_divisions || [];
+  if (divisions.length) {
+    const registered = divisions.reduce((sum, division) => sum + (Number(division.registered) || 0), 0);
+    const maxTotal = divisions.reduce((sum, division) => sum + (Number(division.details?.max_entries) || 0), 0);
+    return maxTotal > 0 ? `${registered} / ${maxTotal}` : `${registered}`;
+  }
+  const registered = item.target_team_count ?? 0;
+  const maxEntries = Number(item.max_entries || 0);
+  return maxEntries > 0 ? `${registered} / ${maxEntries}` : `${registered}`;
+}
+
 function renderConfirmedCounts(item) {
   const divisions = item.selected_age_divisions || [];
   if (!divisions.length) {
@@ -261,7 +274,7 @@ function renderRows() {
       <td class="col-source">${sourceLabel(item.source)}</td>
       <td>${escapeHtml(item.location || "TBD")}</td>
       <td class="col-distance">${formatDistance(item.distance_miles)}</td>
-      <td>${renderRegisteredCounts(item)}</td>
+      <td><span class="desktop-registered">${renderRegisteredCounts(item)}</span><span class="mobile-registered">${escapeHtml(mobileRegisteredSummary(item))}</span></td>
       <td>${renderConfirmedCounts(item)}</td>
       <td>${renderSelectedAgeDivisions(item)}</td>
       <td>
