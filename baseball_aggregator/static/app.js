@@ -7,6 +7,10 @@ const divisionOptions = document.querySelector("#divisionOptions");
 const thresholdFilter = document.querySelector("#thresholdFilter");
 const radiusFilter = document.querySelector("#radiusFilter");
 const searchFilter = document.querySelector("#searchFilter");
+const startDateFilter = document.querySelector("#startDateFilter");
+const endDateFilter = document.querySelector("#endDateFilter");
+const startDatePickerBtn = document.querySelector("#startDatePickerBtn");
+const endDatePickerBtn = document.querySelector("#endDatePickerBtn");
 const profileEl = document.querySelector("#profile");
 const themeToggle = document.querySelector("#themeToggle");
 const logoutBtn = document.querySelector("#logoutBtn");
@@ -477,8 +481,19 @@ async function loadTournaments() {
   if (thresholdFilter.value) params.set("threshold", thresholdFilter.value);
   if (radiusFilter.value) params.set("radius_miles", radiusFilter.value);
   if (searchFilter.value) params.set("q", searchFilter.value);
+  if (startDateFilter.value) params.set("start_on_or_after", startDateFilter.value);
+  if (endDateFilter.value) params.set("end_on_or_before", endDateFilter.value);
   tournaments = await api(`/api/tournaments?${params.toString()}`);
   renderRows();
+}
+
+function openDatePicker(input) {
+  if (!input) return;
+  if (typeof input.showPicker === "function") {
+    input.showPicker();
+    return;
+  }
+  input.focus();
 }
 
 async function loadChanges() {
@@ -508,6 +523,8 @@ document.addEventListener("keydown", (event) => {
   }
 });
 themeToggle.addEventListener("click", toggleTheme);
+startDatePickerBtn.addEventListener("click", () => openDatePicker(startDateFilter));
+endDatePickerBtn.addEventListener("click", () => openDatePicker(endDateFilter));
 logoutBtn.addEventListener("click", async () => {
   await fetch("/logout", { method: "POST" });
   window.location.href = "/login";

@@ -133,7 +133,7 @@ main {
 
 .toolbar {
   display: grid;
-  grid-template-columns: repeat(6, minmax(120px, 1fr)) auto;
+  grid-template-columns: repeat(8, minmax(120px, 1fr)) auto;
   gap: 10px;
   align-items: end;
   margin-bottom: 14px;
@@ -162,6 +162,20 @@ label {
 
 .filter-label {
   line-height: 1.2;
+}
+
+.date-input-wrap {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+
+.icon-button {
+  min-width: 36px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 input,

@@ -204,9 +204,12 @@ def search_tournaments(conn: sqlite3.Connection, filters: dict[str, Any]) -> lis
     if source := filters.get("source"):
         clauses.append("t.source = ?")
         params.append(source)
-    if start_after := filters.get("start_after"):
+    if start_on_or_after := filters.get("start_on_or_after"):
         clauses.append("(t.start_date IS NULL OR t.start_date >= ?)")
-        params.append(start_after)
+        params.append(start_on_or_after)
+    if end_on_or_before := filters.get("end_on_or_before"):
+        clauses.append("(t.end_date IS NULL OR t.end_date <= ?)")
+        params.append(end_on_or_before)
     if search := filters.get("q"):
         clauses.append("(t.name LIKE ? OR t.location LIKE ? OR t.stature LIKE ?)")
         params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
