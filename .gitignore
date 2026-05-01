@@ -1,5 +1,7 @@
 .venv/
 .tmp/
+test-results/
+playwright-report/
 .deploy/
 .pytest_cache/
 __pycache__/

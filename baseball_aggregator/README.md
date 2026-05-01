@@ -21,6 +21,43 @@ Then open <http://127.0.0.1:8000>.
 Local development does not require a password unless `STAFF_TOOL_PASSWORD` is
 set.
 
+## UI screenshots and videos
+
+Use Playwright to capture repeatable UI review artifacts after frontend changes:
+
+```bat
+demo.bat
+```
+
+The demo command installs the Python Playwright package, installs Chromium if
+needed, starts the FastAPI app against a throwaway SQLite database, seeds a few
+sample tournaments, and writes screenshots plus WebM videos to:
+
+```text
+.tmp/ui-demos
+```
+
+For Codex web or a Linux cloud runner, use these setup commands:
+
+```bash
+python -m pip install -r requirements.txt -r requirements-dev.txt
+python -m playwright install --with-deps chromium
+```
+
+Then capture UI artifacts with:
+
+```bash
+python scripts/capture_ui_demo.py
+```
+
+The script keeps demo data isolated under `.tmp/ui-demo-data`, disables hosted
+jobs, and does not require a staff password. To point it at an already-running
+app instead, run:
+
+```bash
+python scripts/capture_ui_demo.py --skip-server --base-url http://127.0.0.1:8000
+```
+
 ## Current status
 
 | Source | Status | Notes |
