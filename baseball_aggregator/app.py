@@ -104,7 +104,8 @@ def api_tournaments(
     division: list[str] | None = Query(default=None),
     threshold: int | None = None,
     radius_miles: int | None = None,
-    start_after: str | None = None,
+    start_on_or_after: str | None = None,
+    end_on_or_before: str | None = None,
     q: str | None = None,
 ):
     with connect() as conn:
@@ -116,7 +117,8 @@ def api_tournaments(
                 "division": division,
                 "threshold": threshold,
                 "radius_miles": radius_miles,
-                "start_after": start_after,
+                "start_on_or_after": start_on_or_after,
+                "end_on_or_before": end_on_or_before,
                 "q": q,
             },
         )
