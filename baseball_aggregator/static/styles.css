@@ -164,20 +164,6 @@ label {
   line-height: 1.2;
 }
 
-.date-input-wrap {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px;
-}
-
-.icon-button {
-  min-width: 36px;
-  padding: 0 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
 input,
 select,
 button,
@@ -219,6 +205,7 @@ button {
   overflow: hidden;
   text-align: left;
   white-space: nowrap;
+  background: var(--input-bg);
 }
 
 .select-like::after {
