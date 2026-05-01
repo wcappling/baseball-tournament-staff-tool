@@ -19,6 +19,10 @@
   --shadow: 0 1px 1px rgb(8 15 26 / 4%);
   --input-bg: #ffffff;
   --focus: #0ea5a2;
+  --status-watch: #eef2f7;
+  --status-interested: #e0f2fe;
+  --status-registered: #dcfce7;
+  --status-declined: #fee2e2;
 }
 
 :root[data-theme="dark"] {
@@ -42,6 +46,10 @@
   --shadow: 0 1px 2px rgb(0 0 0 / 40%);
   --input-bg: #101a27;
   --focus: #22d3ee;
+  --status-watch: #1a2736;
+  --status-interested: #113047;
+  --status-registered: #143322;
+  --status-declined: #3d1e24;
 }
 
 * {
@@ -380,6 +388,22 @@ a:hover {
 
 .status-select {
   min-width: 120px;
+}
+
+tr.status-watch td {
+  background: var(--status-watch);
+}
+
+tr.status-interested td {
+  background: var(--status-interested);
+}
+
+tr.status-registered td {
+  background: var(--status-registered);
+}
+
+tr.status-declined td {
+  background: var(--status-declined);
 }
 
 textarea {
