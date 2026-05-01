@@ -39,14 +39,11 @@ CITY_COORDS = {
 
 def estimate_distance_miles(location: str | None) -> float | None:
     candidates = _location_candidates(location)
-    distances = []
     for city, state in candidates:
         coords = CITY_COORDS.get((city, state))
         if coords:
-            distances.append(_haversine(HUNTSVILLE, coords))
-    if not distances:
-        return None
-    return round(min(distances), 1)
+            return round(_haversine(HUNTSVILLE, coords), 1)
+    return None
 
 
 def _location_candidates(location: str | None) -> list[tuple[str, str]]:
@@ -59,8 +56,8 @@ def _location_candidates(location: str | None) -> list[tuple[str, str]]:
 
     state = state_match.group(1)
     city_part = text[: state_match.start()]
-    parts = re.split(r"\s*/\s*|\s*-\s*", city_part)
-    return [(_title_city(part), state) for part in parts if part.strip()]
+    parts = re.split(r"\s*/\s*|\s*-\s*|\s*,\s*|\s*&\s*", city_part)
+    return [(_title_city(parts[0]), state)] if parts and parts[0].strip() else []
 
 
 def _title_city(city: str) -> str:
