@@ -599,6 +599,22 @@ textarea {
     box-shadow: var(--shadow);
   }
 
+  .table-wrap > table > tbody > tr.status-watch:not(.team-details-row) {
+    background: var(--status-watch);
+  }
+
+  .table-wrap > table > tbody > tr.status-interested:not(.team-details-row) {
+    background: var(--status-interested);
+  }
+
+  .table-wrap > table > tbody > tr.status-registered:not(.team-details-row) {
+    background: var(--status-registered);
+  }
+
+  .table-wrap > table > tbody > tr.status-declined:not(.team-details-row) {
+    background: var(--status-declined);
+  }
+
   .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(1),
   .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(4),
   .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(8),
