@@ -520,6 +520,16 @@ textarea {
   padding: 14px;
 }
 
+.declined-section {
+  margin-top: 14px;
+  padding: 14px;
+}
+
+.declined-section summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .change-log summary {
   cursor: pointer;
   font-weight: 700;
