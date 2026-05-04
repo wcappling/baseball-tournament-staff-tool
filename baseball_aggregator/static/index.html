@@ -124,6 +124,30 @@
         </table>
       </div>
 
+      <details class="declined-section">
+        <summary>Declined <span id="declinedCount">(0)</span></summary>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Teams</th>
+                <th data-sort="start_date">Date</th>
+                <th data-sort="name">Tournament</th>
+                <th class="col-source" data-sort="source">Source</th>
+                <th data-sort="location">Location</th>
+                <th class="col-distance" data-sort="distance_miles">Distance</th>
+                <th data-sort="target_team_count">Teams Registered</th>
+                <th data-sort="selected_age_confirmed_count">Teams Confirmed</th>
+                <th>Age</th>
+                <th>Status</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="declinedRows"></tbody>
+          </table>
+        </div>
+      </details>
+
       <details class="change-log">
         <summary>Change Log</summary>
         <div id="changes" class="changes"></div>
