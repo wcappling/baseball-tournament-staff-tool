@@ -10,6 +10,7 @@ from baseball_aggregator.storage import (
     connect,
     get_tournament_api,
     get_settings,
+    get_team_settings,
     record_refresh_finish,
     record_refresh_start,
     update_tournament_division_teams,
@@ -55,11 +56,12 @@ def hydrate_tournament_teams(
     tournament_id: int,
     target_age: str,
     selected_divisions: list[str] | None = None,
+    team_id: str | None = None,
 ) -> dict | None:
     with connect() as conn:
-        settings = get_settings(conn)
+        settings = get_team_settings(conn, team_id) if team_id else get_settings(conn)
         threshold = int(settings["team_count_threshold"])
-        row = get_tournament_api(conn, tournament_id, target_age, threshold, selected_divisions)
+        row = get_tournament_api(conn, tournament_id, target_age, threshold, selected_divisions, team_id=team_id)
         if row is None:
             return None
         if row["source"] not in {usssa.SOURCE, perfect_game.SOURCE}:
@@ -93,7 +95,18 @@ def hydrate_tournament_teams(
             for team in teams
         ]
         update_tournament_division_teams(conn, tournament_id, division_teams)
-        return get_tournament_api(conn, tournament_id, target_age, threshold, selected_divisions)
+        return get_tournament_api(conn, tournament_id, target_age, threshold, selected_divisions, team_id=team_id)
+
+
+def get_tournament_detail(
+    tournament_id: int,
+    target_age: str,
+    threshold: int,
+    selected_divisions: list[str] | None = None,
+    team_id: str | None = None,
+) -> dict | None:
+    with connect() as conn:
+        return get_tournament_api(conn, tournament_id, target_age, threshold, selected_divisions, team_id=team_id)
 
 
 def fetch_division_teams(

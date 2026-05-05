@@ -109,6 +109,32 @@ logins. Rotate `SESSION_SECRET` at the same time when current logged-in staff
 sessions should be invalidated. Session cookies are HTTP-only, signed, and valid
 for 30 days.
 
+## Team logins for native clients
+
+The native `/api/v1` API uses team-scoped shared logins so different teams can
+share the same tournament pool while keeping notes, statuses, and default
+filters separate. Create or rotate a team login from the repository root with:
+
+```bash
+python -m baseball_aggregator.team_admin upsert \
+  --slug 8u-hawks \
+  --display-name "8U Hawks" \
+  --password "<shared team password>" \
+  --age 8U \
+  --radius 200 \
+  --home-label "Huntsville, AL" \
+  --enabled-source ncs \
+  --enabled-source usssa \
+  --enabled-source perfect_game
+```
+
+Repeat the command with the same `--slug` to update settings or rotate that
+team's password. List configured teams without exposing password hashes with:
+
+```bash
+python -m baseball_aggregator.team_admin list
+```
+
 ## Backups and restore
 
 Hosted jobs run inside the app process when `STAFF_TOOL_ENABLE_HOSTED_JOBS=true`.

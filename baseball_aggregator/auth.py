@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from baseball_aggregator.config import auth_enabled, is_hosted_mode
+from baseball_aggregator.storage import connect, verify_team_password
 
 COOKIE_NAME = "baseball_staff_session"
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
@@ -20,6 +21,9 @@ SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 class PasswordAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if not auth_enabled() or _is_public_path(request.url.path):
+            return await call_next(request)
+
+        if request.url.path.startswith("/api/v1/") and _has_bearer_token(request):
             return await call_next(request)
 
         if _valid_session(request.cookies.get(COOKIE_NAME)):
@@ -45,8 +49,11 @@ def login_page(error: str = "") -> HTMLResponse:
   <main class="login-shell">
     <form class="login-card" method="post" action="/login">
       <h1>Tournament Staff Tool</h1>
-      <p class="subtle">Enter the shared staff password.</p>
+      <p class="subtle">Enter your team code and shared staff password.</p>
       {error_html}
+      <label>Team code
+        <input name="team_slug" autocomplete="organization" placeholder="8u-hawks">
+      </label>
       <label>Password
         <input name="password" type="password" autocomplete="current-password" autofocus required>
       </label>
@@ -60,15 +67,24 @@ def login_page(error: str = "") -> HTMLResponse:
 
 async def handle_login(request: Request) -> Response:
     payload = parse_qs((await request.body()).decode("utf-8"))
+    team_slug = payload.get("team_slug", [""])[0].strip()
     password = payload.get("password", [""])[0]
-    expected = os.getenv("STAFF_TOOL_PASSWORD", "")
-    if not expected or not hmac.compare_digest(password, expected):
-        return login_page("Password did not match.")
+    team_id = "default"
+    if team_slug:
+        with connect() as conn:
+            team = verify_team_password(conn, team_slug, password)
+        if team is None:
+            return login_page("Team code or password did not match.")
+        team_id = team["id"]
+    else:
+        expected = os.getenv("STAFF_TOOL_PASSWORD", "")
+        if not expected or not hmac.compare_digest(password, expected):
+            return login_page("Password did not match.")
 
     response = RedirectResponse("/", status_code=303)
     response.set_cookie(
         COOKIE_NAME,
-        _sign_session(int(time.time())),
+        _sign_session(int(time.time()), team_id),
         max_age=SESSION_MAX_AGE_SECONDS,
         httponly=True,
         secure=is_hosted_mode(),
@@ -84,26 +100,40 @@ def handle_logout() -> Response:
 
 
 def _is_public_path(path: str) -> bool:
-    return path in {"/login", "/logout"} or path.startswith("/static/")
+    return path in {"/login", "/logout", "/api/v1/login"} or path.startswith("/static/")
+
+
+def _has_bearer_token(request: Request) -> bool:
+    value = request.headers.get("authorization", "")
+    return value.lower().startswith("bearer ")
 
 
 def _valid_session(cookie_value: str | None) -> bool:
+    return get_web_team_id(cookie_value) is not None
+
+
+def get_web_team_id(cookie_value: str | None) -> str | None:
     if not cookie_value:
-        return False
+        return None
     try:
-        timestamp_raw, signature = cookie_value.split(".", 1)
+        raw, signature = cookie_value.rsplit(".", 1)
+        parts = raw.split(".", 1)
+        timestamp_raw = parts[0]
+        team_id = parts[1] if len(parts) > 1 else "default"
         timestamp = int(timestamp_raw)
     except ValueError:
-        return False
+        return None
     if time.time() - timestamp > SESSION_MAX_AGE_SECONDS:
-        return False
+        return None
     if timestamp > time.time() + 60:
-        return False
-    return hmac.compare_digest(signature, _signature(timestamp_raw))
+        return None
+    if not hmac.compare_digest(signature, _signature(raw)):
+        return None
+    return team_id
 
 
-def _sign_session(timestamp: int) -> str:
-    raw = str(timestamp)
+def _sign_session(timestamp: int, team_id: str = "default") -> str:
+    raw = f"{timestamp}.{team_id}"
     return f"{raw}.{_signature(raw)}"
 
 
