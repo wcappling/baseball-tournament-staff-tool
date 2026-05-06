@@ -209,7 +209,7 @@ def list_teams(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 
 def get_team_by_slug(conn: sqlite3.Connection, slug: str) -> dict[str, Any] | None:
     init_db(conn)
-    row = conn.execute("SELECT * FROM teams WHERE slug = ? AND active = 1", (slug,)).fetchone()
+    row = conn.execute("SELECT * FROM teams WHERE lower(slug) = lower(?) AND active = 1", (slug,)).fetchone()
     return dict(row) if row else None
 
 

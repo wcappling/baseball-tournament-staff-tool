@@ -152,6 +152,21 @@ def test_native_login_and_v1_api_are_team_scoped(monkeypatch, tmp_path) -> None:
         assert expired.json() == {"error": {"code": "invalid_session", "message": "Session is invalid or expired."}}
 
 
+def test_native_login_matches_team_slug_case_insensitively_and_preserves_slug(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("STAFF_TOOL_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-value-that-is-long-enough")
+    with sqlite3.connect(tmp_path / "baseball_staff_tool.sqlite3") as conn:
+        conn.row_factory = sqlite3.Row
+        init_db(conn)
+        storage.create_team(conn, slug="8U_EBC", display_name="8U Easley Baseball Club", password="EBC")
+
+    with TestClient(app) as client:
+        login = client.post("/api/v1/login", json={"team_slug": "8u_ebc", "password": "EBC"})
+
+        assert login.status_code == 200
+        assert login.json()["team"]["slug"] == "8U_EBC"
+
+
 def test_native_bearer_auth_works_when_cookie_auth_is_enabled(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("STAFF_TOOL_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("STAFF_TOOL_PASSWORD", "legacy-web-pass")
@@ -237,6 +252,32 @@ def test_web_team_login_scopes_existing_browser_api(monkeypatch, tmp_path) -> No
         rows = nine_client.get("/api/tournaments").json()
         assert rows[0]["shortlist_status"] == "Declined"
         assert rows[0]["shortlist_notes"] == "9U browser"
+
+
+def test_web_team_login_matches_team_slug_case_insensitively(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("STAFF_TOOL_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("STAFF_TOOL_PASSWORD", "legacy-web-pass")
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-value-that-is-long-enough")
+    with sqlite3.connect(tmp_path / "baseball_staff_tool.sqlite3") as conn:
+        conn.row_factory = sqlite3.Row
+        init_db(conn)
+        storage.create_team(
+            conn,
+            slug="Cove_Crushers",
+            display_name="9U Cove Crushers",
+            password="cove",
+            settings={"target_age_division": "9U"},
+        )
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/login",
+            data={"team_slug": "cove_crushers", "password": "cove"},
+            follow_redirects=False,
+        )
+
+        assert login.status_code == 303
+        assert client.get("/api/settings").json()["target_age_division"] == "9U"
 
 
 def test_web_login_page_has_team_code_field(monkeypatch) -> None:
