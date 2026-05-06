@@ -12,6 +12,9 @@ const searchFilter = document.querySelector("#searchFilter");
 const startDateFilter = document.querySelector("#startDateFilter");
 const endDateFilter = document.querySelector("#endDateFilter");
 const profileEl = document.querySelector("#profile");
+const teamNameEl = document.querySelector("#teamName");
+const teamLogoEl = document.querySelector("#teamLogo");
+const teamLogoFrame = document.querySelector("#teamLogoFrame");
 const themeToggle = document.querySelector("#themeToggle");
 const logoutBtn = document.querySelector("#logoutBtn");
 const tableWrap = document.querySelector(".table-wrap");
@@ -398,6 +401,7 @@ async function saveShortlist(id) {
 
 async function loadSettings() {
   const settings = await api("/api/settings");
+  applyTeamBrand(settings);
   ageFilter.value = settings.target_age_division;
   thresholdFilter.value = settings.team_count_threshold;
   radiusFilter.value = settings.radius_miles;
@@ -503,6 +507,33 @@ function toggleTheme() {
   const current = document.documentElement.getAttribute("data-theme") || "light";
   const next = current === "dark" ? "light" : "dark";
   applyTheme(next);
+}
+
+function applyTeamBrand(settings) {
+  const root = document.documentElement;
+  const brandPrimary = settings.brand_primary || "#0f766e";
+  const brandSecondary = settings.brand_secondary || "#115e59";
+  const brandAccent = settings.brand_accent || "#0ea5a2";
+  root.style.setProperty("--brand-primary", brandPrimary);
+  root.style.setProperty("--brand-secondary", brandSecondary);
+  root.style.setProperty("--brand-accent", brandAccent);
+  root.style.setProperty("--accent", brandPrimary);
+  root.style.setProperty("--accent-dark", brandSecondary);
+  root.style.setProperty("--focus", brandAccent);
+
+  if (teamNameEl) {
+    teamNameEl.textContent = settings.team_display_name || "Tournament Staff Tool";
+  }
+  if (!teamLogoEl || !teamLogoFrame) return;
+  if (settings.logo_url) {
+    teamLogoEl.src = settings.logo_url;
+    teamLogoEl.alt = `${settings.team_display_name || "Team"} logo`;
+    teamLogoFrame.hidden = false;
+  } else {
+    teamLogoEl.removeAttribute("src");
+    teamLogoEl.alt = "";
+    teamLogoFrame.hidden = true;
+  }
 }
 
 function initTheme() {

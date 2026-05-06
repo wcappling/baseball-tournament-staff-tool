@@ -167,6 +167,45 @@ def test_native_login_matches_team_slug_case_insensitively_and_preserves_slug(mo
         assert login.json()["team"]["slug"] == "8U_EBC"
 
 
+def test_known_team_settings_include_brand_theme_defaults() -> None:
+    with sqlite3.connect(":memory:") as conn:
+        conn.row_factory = sqlite3.Row
+        init_db(conn)
+        ebc = storage.create_team(conn, slug="8U_EBC", display_name="8U Easley Baseball Club", password="EBC")
+        cove = storage.create_team(conn, slug="Cove_Crushers", display_name="9U Cove Crushers", password="cove")
+
+        ebc_settings = storage.get_team_settings(conn, ebc["id"])
+        cove_settings = storage.get_team_settings(conn, cove["id"])
+
+        assert ebc_settings["brand_primary"] == "#050505"
+        assert ebc_settings["brand_secondary"] == "#d8c27a"
+        assert ebc_settings["logo_url"] == "/static/team-assets/ebc-logo.png"
+        assert cove_settings["brand_primary"] == "#0b2b4f"
+        assert cove_settings["brand_secondary"] == "#be174d"
+        assert cove_settings["logo_url"] == "/static/team-assets/cove-crushers-mark.jpg"
+
+
+def test_init_db_seeds_known_team_branding_for_existing_teams() -> None:
+    with sqlite3.connect(":memory:") as conn:
+        conn.row_factory = sqlite3.Row
+        init_db(conn)
+        team = storage.create_team(
+            conn,
+            slug="Cove_Crushers",
+            display_name="9U Cove Crushers",
+            password="cove",
+            settings={"brand_primary": "#123456", "logo_url": ""},
+        )
+        conn.execute("DELETE FROM team_settings WHERE team_id = ? AND key IN ('brand_primary', 'brand_secondary', 'brand_accent', 'logo_url')", (team["id"],))
+        conn.commit()
+
+        init_db(conn)
+        settings = storage.get_team_settings(conn, team["id"])
+
+        assert settings["brand_primary"] == "#0b2b4f"
+        assert settings["logo_url"] == "/static/team-assets/cove-crushers-mark.jpg"
+
+
 def test_native_bearer_auth_works_when_cookie_auth_is_enabled(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("STAFF_TOOL_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("STAFF_TOOL_PASSWORD", "legacy-web-pass")
@@ -280,6 +319,25 @@ def test_web_team_login_matches_team_slug_case_insensitively(monkeypatch, tmp_pa
         assert client.get("/api/settings").json()["target_age_division"] == "9U"
 
 
+def test_web_settings_include_team_identity_for_branding(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("STAFF_TOOL_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("STAFF_TOOL_PASSWORD", "legacy-web-pass")
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-value-that-is-long-enough")
+    with sqlite3.connect(tmp_path / "baseball_staff_tool.sqlite3") as conn:
+        conn.row_factory = sqlite3.Row
+        init_db(conn)
+        storage.create_team(conn, slug="8U_EBC", display_name="8U Easley Baseball Club", password="EBC")
+
+    with TestClient(app) as client:
+        login = client.post("/login", data={"team_slug": "8u_ebc", "password": "EBC"}, follow_redirects=False)
+        settings = client.get("/api/settings").json()
+
+        assert login.status_code == 303
+        assert settings["team_slug"] == "8U_EBC"
+        assert settings["team_display_name"] == "8U Easley Baseball Club"
+        assert settings["logo_url"] == "/static/team-assets/ebc-logo.png"
+
+
 def test_web_login_page_has_team_code_field(monkeypatch) -> None:
     monkeypatch.setenv("STAFF_TOOL_PASSWORD", "legacy-web-pass")
 
@@ -289,6 +347,21 @@ def test_web_login_page_has_team_code_field(monkeypatch) -> None:
     assert page.status_code == 200
     assert 'name="team_slug"' in page.text
     assert "Team code" in page.text
+
+
+def test_static_ui_supports_team_branding() -> None:
+    static_dir = Path(__file__).resolve().parents[1] / "static"
+    html = (static_dir / "index.html").read_text(encoding="utf-8")
+    js = (static_dir / "app.js").read_text(encoding="utf-8")
+    css = (static_dir / "styles.css").read_text(encoding="utf-8")
+
+    assert 'id="teamLogo"' in html
+    assert 'id="teamName"' in html
+    assert "applyTeamBrand" in js
+    assert "--brand-primary" in css
+    assert "--brand-secondary" in css
+    assert (static_dir / "team-assets" / "ebc-logo.png").exists()
+    assert (static_dir / "team-assets" / "cove-crushers-mark.jpg").exists()
 
 
 def test_mobile_css_keeps_staff_workflows_visible() -> None:

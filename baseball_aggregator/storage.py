@@ -18,6 +18,20 @@ from baseball_aggregator.models import DEFAULT_SETTINGS, Tournament
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 DB_PATH = get_db_path()
+TEAM_THEME_DEFAULTS = {
+    "8u_ebc": {
+        "brand_primary": "#050505",
+        "brand_secondary": "#d8c27a",
+        "brand_accent": "#ffffff",
+        "logo_url": "/static/team-assets/ebc-logo.png",
+    },
+    "cove_crushers": {
+        "brand_primary": "#0b2b4f",
+        "brand_secondary": "#be174d",
+        "brand_accent": "#ffffff",
+        "logo_url": "/static/team-assets/cove-crushers-mark.jpg",
+    },
+}
 
 
 def connect(db_path: Path | None = None) -> sqlite3.Connection:
@@ -138,6 +152,7 @@ def init_db(conn: sqlite3.Connection) -> None:
         )
     _ensure_default_team(conn)
     _migrate_shortlist_table(conn)
+    _seed_known_team_theme_defaults(conn)
     conn.commit()
 
 
@@ -182,6 +197,7 @@ def create_team(
     row = conn.execute("SELECT * FROM teams WHERE slug = ?", (slug,)).fetchone()
     team = dict(row)
     merged_settings = dict(DEFAULT_SETTINGS)
+    merged_settings.update(TEAM_THEME_DEFAULTS.get(slug.casefold(), {}))
     merged_settings.update(settings or {})
     for key, value in merged_settings.items():
         if key in DEFAULT_SETTINGS:
@@ -664,6 +680,18 @@ def _ensure_default_team(conn: sqlite3.Connection) -> None:
             "INSERT OR IGNORE INTO team_settings(team_id, key, value) VALUES ('default', ?, ?)",
             (key, json.dumps(value)),
         )
+
+
+def _seed_known_team_theme_defaults(conn: sqlite3.Connection) -> None:
+    for row in conn.execute("SELECT id, slug FROM teams"):
+        defaults = TEAM_THEME_DEFAULTS.get(row["slug"].casefold())
+        if not defaults:
+            continue
+        for key, value in defaults.items():
+            conn.execute(
+                "INSERT OR IGNORE INTO team_settings(team_id, key, value) VALUES (?, ?, ?)",
+                (row["id"], key, json.dumps(value)),
+            )
 
 
 def _migrate_shortlist_table(conn: sqlite3.Connection) -> None:

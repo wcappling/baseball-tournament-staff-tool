@@ -58,6 +58,10 @@ class TeamSettingsUpdate(BaseModel):
     team_count_threshold: int | None = Field(default=None, ge=1)
     refresh_cadence_hours: int | None = Field(default=None, ge=1)
     enabled_sources: list[str] | None = None
+    brand_primary: str | None = None
+    brand_secondary: str | None = None
+    brand_accent: str | None = None
+    logo_url: str | None = None
 
     def clean_payload(self) -> dict[str, Any]:
         return {key: value for key, value in self.model_dump().items() if value is not None}
@@ -195,7 +199,13 @@ def index():
 @app.get("/api/settings")
 def api_get_settings(request: Request):
     with connect() as conn:
-        return get_team_settings(conn, _web_team_id(request))
+        team_id = _web_team_id(request)
+        settings = get_team_settings(conn, team_id)
+        team = conn.execute("SELECT slug, display_name FROM teams WHERE id = ?", (team_id,)).fetchone()
+        if team:
+            settings["team_slug"] = team["slug"]
+            settings["team_display_name"] = team["display_name"]
+        return settings
 
 
 @app.put("/api/settings")
