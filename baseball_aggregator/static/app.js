@@ -1,4 +1,6 @@
 const rowsEl = document.querySelector("#tournamentRows");
+const declinedRowsEl = document.querySelector("#declinedRows");
+const declinedCountEl = document.querySelector("#declinedCount");
 const changesEl = document.querySelector("#changes");
 const sourceFilter = document.querySelector("#sourceFilter");
 const ageFilter = document.querySelector("#ageFilter");
@@ -9,8 +11,6 @@ const radiusFilter = document.querySelector("#radiusFilter");
 const searchFilter = document.querySelector("#searchFilter");
 const startDateFilter = document.querySelector("#startDateFilter");
 const endDateFilter = document.querySelector("#endDateFilter");
-const startDatePickerBtn = document.querySelector("#startDatePickerBtn");
-const endDatePickerBtn = document.querySelector("#endDatePickerBtn");
 const profileEl = document.querySelector("#profile");
 const themeToggle = document.querySelector("#themeToggle");
 const logoutBtn = document.querySelector("#logoutBtn");
@@ -264,42 +264,65 @@ function sortRows(items) {
 
 function renderRows() {
   rowsEl.innerHTML = "";
+  declinedRowsEl.innerHTML = "";
+  const declinedItems = [];
+  const activeItems = [];
   for (const item of sortRows(tournaments)) {
-    const tr = document.createElement("tr");
-    const detailsTr = document.createElement("tr");
-    const detailsId = `teams-${item.id}`;
-    tr.innerHTML = `
-      <td><button class="teams-toggle" data-id="${item.id}" data-target="${detailsId}" title="Show registered teams">Teams</button></td>
-      <td>${formatDate(item.start_date, item.end_date)}</td>
-      <td>
-        <div class="name"><a href="${escapeHtml(item.detail_url)}" target="_blank" rel="noreferrer">${escapeHtml(item.name)}</a></div>
-        <div class="subtle">${escapeHtml(item.stature || "")} ${escapeHtml(item.format || "")}</div>
-      </td>
-      <td class="col-source">${sourceLabel(item.source)}</td>
-      <td>${escapeHtml(item.location || "TBD")}</td>
-      <td class="col-distance">${formatDistance(item.distance_miles)}</td>
-      <td><span class="desktop-registered">${renderRegisteredCounts(item)}</span><span class="mobile-registered">${escapeHtml(mobileRegisteredSummary(item))}</span></td>
-      <td>${renderConfirmedCounts(item)}</td>
-      <td>${renderSelectedAgeDivisions(item)}</td>
-      <td>
-        <select class="status-select" data-id="${item.id}">
-          ${["Watch", "Interested", "Registered", "Declined"].map((status) => (
-            `<option value="${status}" ${status === (item.shortlist_status || "Watch") ? "selected" : ""}>${status}</option>`
-          )).join("")}
-        </select>
-      </td>
-      <td>
-        <textarea data-id="${item.id}" placeholder="Staff notes">${escapeHtml(item.shortlist_notes || "")}</textarea>
-      </td>
-    `;
-    detailsTr.id = detailsId;
-    detailsTr.className = "team-details-row";
-    detailsTr.hidden = true;
-    detailsTr.innerHTML = `<td colspan="11">${renderTeamRows(item)}</td>`;
-    rowsEl.appendChild(tr);
-    rowsEl.appendChild(detailsTr);
+    if ((item.shortlist_status || "Watch") === "Declined") {
+      declinedItems.push(item);
+    } else {
+      activeItems.push(item);
+    }
   }
+  for (const item of activeItems) {
+    renderTournamentRow(item, rowsEl);
+  }
+  for (const item of declinedItems) {
+    renderTournamentRow(item, declinedRowsEl);
+  }
+  if (declinedCountEl) declinedCountEl.textContent = `(${declinedItems.length})`;
+  bindRowEvents();
+  queueTournamentTableScrollHintUpdate();
+}
 
+function renderTournamentRow(item, container) {
+  const tr = document.createElement("tr");
+  const detailsTr = document.createElement("tr");
+  const detailsId = `teams-${item.id}`;
+  tr.innerHTML = `
+    <td><button class="teams-toggle" data-id="${item.id}" data-target="${detailsId}" title="Show registered teams">Teams</button></td>
+    <td>${formatDate(item.start_date, item.end_date)}</td>
+    <td>
+      <div class="name"><a href="${escapeHtml(item.detail_url)}" target="_blank" rel="noreferrer">${escapeHtml(item.name)}</a></div>
+      <div class="subtle">${escapeHtml(item.stature || "")} ${escapeHtml(item.format || "")}</div>
+    </td>
+    <td class="col-source">${sourceLabel(item.source)}</td>
+    <td>${escapeHtml(item.location || "TBD")}</td>
+    <td class="col-distance">${formatDistance(item.distance_miles)}</td>
+    <td><span class="desktop-registered">${renderRegisteredCounts(item)}</span><span class="mobile-registered">${escapeHtml(mobileRegisteredSummary(item))}</span></td>
+    <td>${renderConfirmedCounts(item)}</td>
+    <td>${renderSelectedAgeDivisions(item)}</td>
+    <td>
+      <select class="status-select" data-id="${item.id}">
+        ${["Watch", "Interested", "Registered", "Declined"].map((status) => (
+          `<option value="${status}" ${status === (item.shortlist_status || "Watch") ? "selected" : ""}>${status}</option>`
+        )).join("")}
+      </select>
+    </td>
+    <td>
+      <textarea data-id="${item.id}" placeholder="Staff notes">${escapeHtml(item.shortlist_notes || "")}</textarea>
+    </td>
+  `;
+  detailsTr.id = detailsId;
+  detailsTr.className = "team-details-row";
+  detailsTr.hidden = true;
+  detailsTr.innerHTML = `<td colspan="11">${renderTeamRows(item)}</td>`;
+  container.appendChild(tr);
+  container.appendChild(detailsTr);
+  applyStatusClass(tr, item.shortlist_status || "Watch");
+}
+
+function bindRowEvents() {
   document.querySelectorAll(".teams-toggle").forEach((button) => {
     button.addEventListener("click", async () => {
       const target = document.querySelector(`#${button.dataset.target}`);
@@ -327,12 +350,29 @@ function renderRows() {
     });
   });
   document.querySelectorAll(".status-select").forEach((select) => {
-    select.addEventListener("change", () => saveShortlist(select.dataset.id));
+    select.addEventListener("change", () => {
+      const item = tournaments.find((tournament) => String(tournament.id) === select.dataset.id);
+      if (item) item.shortlist_status = select.value;
+      const row = select.closest("tr");
+      if (row) {
+        applyStatusClass(row, select.value);
+      }
+      renderRows();
+      saveShortlist(select.dataset.id);
+    });
   });
   document.querySelectorAll("textarea[data-id]").forEach((textarea) => {
     textarea.addEventListener("blur", () => saveShortlist(textarea.dataset.id));
   });
-  queueTournamentTableScrollHintUpdate();
+}
+
+function statusClass(status) {
+  return `status-${String(status || "Watch").toLowerCase()}`;
+}
+
+function applyStatusClass(row, status) {
+  row.classList.remove("status-watch", "status-interested", "status-registered", "status-declined");
+  row.classList.add(statusClass(status));
 }
 
 async function loadTournamentTeams(item) {
@@ -487,15 +527,6 @@ async function loadTournaments() {
   renderRows();
 }
 
-function openDatePicker(input) {
-  if (!input) return;
-  if (typeof input.showPicker === "function") {
-    input.showPicker();
-    return;
-  }
-  input.focus();
-}
-
 async function loadChanges() {
   const changes = await api("/api/changes");
   changesEl.innerHTML = changes.length ? "" : '<p class="subtle">No changes recorded yet.</p>';
@@ -523,8 +554,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 themeToggle.addEventListener("click", toggleTheme);
-startDatePickerBtn.addEventListener("click", () => openDatePicker(startDateFilter));
-endDatePickerBtn.addEventListener("click", () => openDatePicker(endDateFilter));
 logoutBtn.addEventListener("click", async () => {
   await fetch("/logout", { method: "POST" });
   window.location.href = "/login";

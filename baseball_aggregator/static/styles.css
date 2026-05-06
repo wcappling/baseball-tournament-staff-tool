@@ -19,6 +19,10 @@
   --shadow: 0 1px 1px rgb(8 15 26 / 4%);
   --input-bg: #ffffff;
   --focus: #0ea5a2;
+  --status-watch: #eef2f7;
+  --status-interested: #e0f2fe;
+  --status-registered: #dcfce7;
+  --status-declined: #fee2e2;
 }
 
 :root[data-theme="dark"] {
@@ -42,6 +46,10 @@
   --shadow: 0 1px 2px rgb(0 0 0 / 40%);
   --input-bg: #101a27;
   --focus: #22d3ee;
+  --status-watch: #1a2736;
+  --status-interested: #113047;
+  --status-registered: #143322;
+  --status-declined: #3d1e24;
 }
 
 * {
@@ -164,20 +172,6 @@ label {
   line-height: 1.2;
 }
 
-.date-input-wrap {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px;
-}
-
-.icon-button {
-  min-width: 36px;
-  padding: 0 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
 input,
 select,
 button,
@@ -219,6 +213,7 @@ button {
   overflow: hidden;
   text-align: left;
   white-space: nowrap;
+  background: var(--input-bg);
 }
 
 .select-like::after {
@@ -395,6 +390,22 @@ a:hover {
   min-width: 120px;
 }
 
+tr.status-watch td {
+  background: var(--status-watch);
+}
+
+tr.status-interested td {
+  background: var(--status-interested);
+}
+
+tr.status-registered td {
+  background: var(--status-registered);
+}
+
+tr.status-declined td {
+  background: var(--status-declined);
+}
+
 textarea {
   min-width: 220px;
   min-height: 44px;
@@ -509,6 +520,16 @@ textarea {
   padding: 14px;
 }
 
+.declined-section {
+  margin-top: 14px;
+  padding: 14px;
+}
+
+.declined-section summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .change-log summary {
   cursor: pointer;
   font-weight: 700;
@@ -582,6 +603,22 @@ textarea {
     margin: 10px;
     background: var(--surface);
     box-shadow: var(--shadow);
+  }
+
+  .table-wrap > table > tbody > tr.status-watch:not(.team-details-row) {
+    background: var(--status-watch);
+  }
+
+  .table-wrap > table > tbody > tr.status-interested:not(.team-details-row) {
+    background: var(--status-interested);
+  }
+
+  .table-wrap > table > tbody > tr.status-registered:not(.team-details-row) {
+    background: var(--status-registered);
+  }
+
+  .table-wrap > table > tbody > tr.status-declined:not(.team-details-row) {
+    background: var(--status-declined);
   }
 
   .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(3) .subtle,
