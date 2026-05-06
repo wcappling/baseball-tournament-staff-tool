@@ -8,6 +8,7 @@
   --brand-primary: #0f766e;
   --brand-secondary: #115e59;
   --brand-accent: #0ea5a2;
+  --brand-on-primary: #ffffff;
   --warn: #b45309;
   --good: #15803d;
   --surface: #ffffff;
@@ -38,6 +39,7 @@
   --brand-primary: #14b8a6;
   --brand-secondary: #0ea5a2;
   --brand-accent: #22d3ee;
+  --brand-on-primary: #07101b;
   --warn: #fbbf24;
   --good: #4ade80;
   --surface: #182432;
@@ -318,7 +320,7 @@ button:hover {
 
 button.primary {
   background: var(--accent);
-  color: white;
+  color: var(--brand-on-primary);
   border-color: var(--accent);
   font-weight: 700;
 }
@@ -424,8 +426,8 @@ a:hover {
 }
 
 .pill.good {
-  background: var(--pill-good);
-  color: var(--good);
+  background: color-mix(in srgb, var(--brand-primary) 68%, var(--pill-good));
+  color: var(--brand-on-primary);
 }
 
 .pill.warn {
@@ -438,19 +440,19 @@ a:hover {
 }
 
 tr.status-watch td {
-  background: var(--status-watch);
+  background: color-mix(in srgb, var(--brand-primary) 10%, var(--status-watch));
 }
 
 tr.status-interested td {
-  background: var(--status-interested);
+  background: color-mix(in srgb, var(--brand-secondary) 12%, var(--status-interested));
 }
 
 tr.status-registered td {
-  background: var(--status-registered);
+  background: color-mix(in srgb, var(--brand-primary) 14%, var(--status-registered));
 }
 
 tr.status-declined td {
-  background: var(--status-declined);
+  background: color-mix(in srgb, var(--brand-secondary) 10%, var(--status-declined));
 }
 
 textarea {

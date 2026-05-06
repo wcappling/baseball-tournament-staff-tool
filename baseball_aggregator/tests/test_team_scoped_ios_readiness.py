@@ -358,8 +358,12 @@ def test_static_ui_supports_team_branding() -> None:
     assert 'id="teamLogo"' in html
     assert 'id="teamName"' in html
     assert "applyTeamBrand" in js
+    assert "teamThemeTokens" in js
+    assert "currentTeamSettings" in js
     assert "--brand-primary" in css
     assert "--brand-secondary" in css
+    for token in ("--page", "--surface", "--panel", "--input-bg", "--link", "--line"):
+        assert f'"{token}"' in js
     assert (static_dir / "team-assets" / "ebc-logo.png").exists()
     assert (static_dir / "team-assets" / "cove-crushers-mark.jpg").exists()
 

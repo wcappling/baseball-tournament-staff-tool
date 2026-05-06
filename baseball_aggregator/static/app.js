@@ -24,6 +24,7 @@ let sortKey = "target_team_count";
 let sortDirection = -1;
 const THEME_KEY = "staff_tool_theme";
 let scrollHintRaf = null;
+let currentTeamSettings = null;
 
 function updateTournamentTableScrollHint() {
   if (!tableWrap) return;
@@ -501,6 +502,9 @@ function applyTheme(theme) {
   themeToggle.textContent = normalized === "dark" ? "Light mode" : "Dark mode";
   themeToggle.setAttribute("aria-label", `Switch to ${normalized === "dark" ? "light" : "dark"} mode`);
   localStorage.setItem(THEME_KEY, normalized);
+  if (currentTeamSettings) {
+    applyTeamBrand(currentTeamSettings);
+  }
 }
 
 function toggleTheme() {
@@ -510,16 +514,12 @@ function toggleTheme() {
 }
 
 function applyTeamBrand(settings) {
+  currentTeamSettings = settings;
   const root = document.documentElement;
-  const brandPrimary = settings.brand_primary || "#0f766e";
-  const brandSecondary = settings.brand_secondary || "#115e59";
-  const brandAccent = settings.brand_accent || "#0ea5a2";
-  root.style.setProperty("--brand-primary", brandPrimary);
-  root.style.setProperty("--brand-secondary", brandSecondary);
-  root.style.setProperty("--brand-accent", brandAccent);
-  root.style.setProperty("--accent", brandPrimary);
-  root.style.setProperty("--accent-dark", brandSecondary);
-  root.style.setProperty("--focus", brandAccent);
+  const tokens = teamThemeTokens(settings, root.getAttribute("data-theme") || "dark");
+  for (const [key, value] of Object.entries(tokens)) {
+    root.style.setProperty(key, value);
+  }
 
   if (teamNameEl) {
     teamNameEl.textContent = settings.team_display_name || "Tournament Staff Tool";
@@ -534,6 +534,89 @@ function applyTeamBrand(settings) {
     teamLogoEl.alt = "";
     teamLogoFrame.hidden = true;
   }
+}
+
+function teamThemeTokens(settings, mode) {
+  const primary = normalizeHex(settings.brand_primary, "#0f766e");
+  const secondary = normalizeHex(settings.brand_secondary, "#115e59");
+  const accent = normalizeHex(settings.brand_accent, secondary);
+  const darkMode = mode === "dark";
+  const pageBase = darkMode ? "#07101b" : "#eef3f8";
+  const surfaceBase = darkMode ? "#111d2b" : "#ffffff";
+  const panelBase = darkMode ? "#162638" : "#edf2f7";
+  const inputBase = darkMode ? "#0b1624" : "#ffffff";
+  const inkBase = darkMode ? "#f3f7fc" : "#142133";
+  const mutedBase = darkMode ? "#a9b9cb" : "#56687b";
+  const linkBase = darkMode ? "#75d8ff" : "#0f4fd8";
+  const lineBase = darkMode ? "#2b3d52" : "#cdd8e5";
+  const brandOnPrimary = contrastRatio(primary, "#ffffff") >= 4.5 ? "#ffffff" : "#07101b";
+
+  return {
+    "--brand-primary": primary,
+    "--brand-secondary": secondary,
+    "--brand-accent": accent,
+    "--brand-on-primary": brandOnPrimary,
+    "--accent": primary,
+    "--accent-dark": mixHex(primary, "#000000", darkMode ? 0.24 : 0.18),
+    "--focus": contrastRatio(accent, pageBase) >= 3 ? accent : secondary,
+    "--page": mixHex(primary, pageBase, darkMode ? 0.82 : 0.92),
+    "--surface": mixHex(primary, surfaceBase, darkMode ? 0.78 : 0.96),
+    "--panel": mixHex(primary, panelBase, darkMode ? 0.70 : 0.90),
+    "--input-bg": mixHex(primary, inputBase, darkMode ? 0.86 : 0.98),
+    "--detail": mixHex(primary, darkMode ? "#0e1928" : "#f6f9fc", darkMode ? 0.82 : 0.96),
+    "--line": mixHex(secondary, lineBase, darkMode ? 0.72 : 0.82),
+    "--pill": mixHex(primary, darkMode ? "#293c52" : "#dce6ef", darkMode ? 0.74 : 0.86),
+    "--ink": inkBase,
+    "--muted": mutedBase,
+    "--th-ink": darkMode ? "#dce8f5" : "#273648",
+    "--link": mixHex(secondary, linkBase, darkMode ? 0.30 : 0.62),
+    "--link-hover": mixHex(accent, linkBase, darkMode ? 0.20 : 0.50),
+  };
+}
+
+function normalizeHex(value, fallback) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^#?([0-9a-f]{6})$/i);
+  return match ? `#${match[1].toLowerCase()}` : fallback;
+}
+
+function mixHex(color, base, baseWeight) {
+  const a = hexToRgb(color);
+  const b = hexToRgb(base);
+  const weight = Math.max(0, Math.min(1, baseWeight));
+  return rgbToHex({
+    r: Math.round(a.r * (1 - weight) + b.r * weight),
+    g: Math.round(a.g * (1 - weight) + b.g * weight),
+    b: Math.round(a.b * (1 - weight) + b.b * weight),
+  });
+}
+
+function hexToRgb(hex) {
+  const clean = normalizeHex(hex, "#000000").slice(1);
+  return {
+    r: parseInt(clean.slice(0, 2), 16),
+    g: parseInt(clean.slice(2, 4), 16),
+    b: parseInt(clean.slice(4, 6), 16),
+  };
+}
+
+function rgbToHex(rgb) {
+  return `#${[rgb.r, rgb.g, rgb.b].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function contrastRatio(first, second) {
+  const light = Math.max(relativeLuminance(first), relativeLuminance(second));
+  const dark = Math.min(relativeLuminance(first), relativeLuminance(second));
+  return (light + 0.05) / (dark + 0.05);
+}
+
+function relativeLuminance(hex) {
+  const rgb = hexToRgb(hex);
+  const values = [rgb.r, rgb.g, rgb.b].map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+  return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
 }
 
 function initTheme() {
