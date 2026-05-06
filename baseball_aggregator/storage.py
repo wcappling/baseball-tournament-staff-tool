@@ -153,6 +153,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     _ensure_default_team(conn)
     _migrate_shortlist_table(conn)
     _seed_known_team_theme_defaults(conn)
+    _backfill_missing_distances(conn)
     conn.commit()
 
 
@@ -692,6 +693,15 @@ def _seed_known_team_theme_defaults(conn: sqlite3.Connection) -> None:
                 "INSERT OR IGNORE INTO team_settings(team_id, key, value) VALUES (?, ?, ?)",
                 (row["id"], key, json.dumps(value)),
             )
+
+
+def _backfill_missing_distances(conn: sqlite3.Connection) -> None:
+    rows = conn.execute("SELECT id, location FROM tournaments WHERE distance_miles IS NULL").fetchall()
+    for row in rows:
+        distance = estimate_distance_miles(row["location"])
+        if distance is None:
+            continue
+        conn.execute("UPDATE tournaments SET distance_miles = ? WHERE id = ?", (distance, row["id"]))
 
 
 def _migrate_shortlist_table(conn: sqlite3.Connection) -> None:

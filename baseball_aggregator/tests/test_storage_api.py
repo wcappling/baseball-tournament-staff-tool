@@ -281,3 +281,32 @@ def test_distance_filter_uses_radius_without_changing_base_dataset():
 
         rows_200 = search_tournaments(conn, {"age": "12U", "radius_miles": 200})
         assert {row["name"] for row in rows_200} == {"Near Event", "Far Event", "Unknown Event"}
+
+
+def test_init_db_backfills_known_missing_distances():
+    with sqlite3.connect(":memory:") as conn:
+        conn.row_factory = sqlite3.Row
+        init_db(conn)
+        upsert_tournaments(
+            conn,
+            [
+                Tournament(
+                    source="perfect_game",
+                    source_id="marietta",
+                    name="Marietta Event",
+                    detail_url="https://example.com/marietta",
+                    location="Marietta, GA",
+                    age_divisions=["9U"],
+                    registered_teams=8,
+                )
+            ],
+        )
+        conn.execute("UPDATE tournaments SET distance_miles = NULL WHERE source_id = 'marietta'")
+        conn.commit()
+
+        init_db(conn)
+        row = conn.execute("SELECT distance_miles FROM tournaments WHERE source_id = 'marietta'").fetchone()
+        rows = search_tournaments(conn, {"age": "9U", "radius_miles": 200})
+
+        assert row["distance_miles"] is not None
+        assert rows[0]["name"] == "Marietta Event"
