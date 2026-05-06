@@ -73,6 +73,20 @@ function formatDistance(distance) {
   return `${Math.round(distance)} mi`;
 }
 
+function todayLocalDateValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function setDefaultDateFilters() {
+  if (startDateFilter && !startDateFilter.value) {
+    startDateFilter.value = todayLocalDateValue();
+  }
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -708,4 +722,5 @@ if (tableWrap) {
 }
 
 initTheme();
+setDefaultDateFilters();
 loadSettings().then(loadDivisions).then(loadTournaments).then(loadChanges);

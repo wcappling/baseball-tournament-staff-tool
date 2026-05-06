@@ -368,6 +368,15 @@ def test_static_ui_supports_team_branding() -> None:
     assert (static_dir / "team-assets" / "cove-crushers-mark.jpg").exists()
 
 
+def test_static_ui_defaults_start_date_to_today() -> None:
+    js = (Path(__file__).resolve().parents[1] / "static" / "app.js").read_text(encoding="utf-8")
+
+    assert "todayLocalDateValue" in js
+    assert "setDefaultDateFilters" in js
+    assert "startDateFilter.value = todayLocalDateValue()" in js
+    assert "setDefaultDateFilters();" in js
+
+
 def test_mobile_css_keeps_staff_workflows_visible() -> None:
     css = (Path(__file__).resolve().parents[1] / "static" / "styles.css").read_text(encoding="utf-8")
 
