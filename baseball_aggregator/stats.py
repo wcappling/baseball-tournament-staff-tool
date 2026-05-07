@@ -95,6 +95,10 @@ def aggregate_team_records(conn: sqlite3.Connection, age_division: str) -> list[
                 src["losses"] += losses
                 src["ties"] += ties
 
+    # Merge records scraped directly from the NCS Teams listing page.
+    # These are stored separately in ncs_team_records and use source="ncs".
+    _merge_ncs_team_records(conn, age_prefix, team_map)
+
     results: list[dict[str, Any]] = []
     for data in team_map.values():
         sources = data["sources"]
@@ -124,6 +128,55 @@ def aggregate_team_records(conn: sqlite3.Connection, age_division: str) -> list[
 
     results.sort(key=lambda x: (-x["win_pct"], -x["total_games"]))
     return results
+
+
+def _merge_ncs_team_records(
+    conn: sqlite3.Connection,
+    age_prefix: str,
+    team_map: dict[str, dict[str, Any]],
+) -> None:
+    """Merge records from ncs_team_records into team_map (mutates in place).
+
+    Skips gracefully if the table doesn't exist yet (first run before any
+    NCS Teams scrape has been triggered).
+    """
+    try:
+        ncs_rows = conn.execute(
+            "SELECT team_name, city_state, record FROM ncs_team_records WHERE age_division = ?",
+            (age_prefix,),
+        ).fetchall()
+    except Exception:
+        # Table may not exist yet — that's fine, just skip.
+        return
+
+    for row in ncs_rows:
+        raw_name: str = row["team_name"] or ""
+        if not raw_name.strip():
+            continue
+
+        record_str: str = row["record"] or ""
+        parsed = parse_record(record_str)
+        if parsed is None:
+            continue
+
+        key = raw_name.strip().lower()
+        if key not in team_map:
+            team_map[key] = {
+                "team_name": raw_name.strip(),
+                "city_state": row["city_state"] or "",
+                "sources": {},
+            }
+        # Fill city_state if the tournament path left it blank
+        if not team_map[key]["city_state"] and row["city_state"]:
+            team_map[key]["city_state"] = row["city_state"]
+
+        wins, losses, ties = parsed
+        src = team_map[key]["sources"].setdefault(
+            "ncs", {"wins": 0, "losses": 0, "ties": 0}
+        )
+        src["wins"] += wins
+        src["losses"] += losses
+        src["ties"] += ties
 
 
 def team_analysis_records(
