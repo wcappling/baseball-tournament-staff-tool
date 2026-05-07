@@ -12,7 +12,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from baseball_aggregator.scrapers import ncs_teams as _ncs_teams_scraper
 from baseball_aggregator.auth import (
     COOKIE_NAME,
     PasswordAuthMiddleware,
@@ -419,47 +418,6 @@ def api_team_analysis(age: str | None = None, request: Request = None):
         age_division = (age or settings["target_age_division"]).upper()
         team_id = _web_team_id(request) if request else ""
         return stats.team_analysis_records(conn, age_division, team_id=team_id)
-
-
-@app.post("/api/ncs-teams/scrape")
-def api_ncs_teams_scrape(
-    request: Request,
-    age: str | None = None,
-    state: str | None = None,
-    season_id: int | None = None,
-):
-    """Trigger a scrape of the NCS Teams listing for a given state and age division.
-
-    Parameters default to the team's configured home state and target age
-    division when not provided.  Requires staff auth (same as all other
-    write endpoints on the web app).
-    """
-    with connect() as conn:
-        team_id = _web_team_id(request)
-        settings = get_team_settings(conn, team_id)
-        age_division = (age or settings.get("target_age_division") or "8U").strip().upper()
-        # Derive state from home_label ("Huntsville, AL" → "AL") or explicit param
-        if not state:
-            home_label: str = settings.get("home_label") or ""
-            # Try to extract two-letter state abbreviation from the label
-            import re as _re
-            m = _re.search(r"\b([A-Z]{2})\s*$", home_label.upper())
-            state = m.group(1) if m else "AL"
-        scrape_season_id = season_id or _ncs_teams_scraper.DEFAULT_SEASON_ID
-
-        try:
-            result = _ncs_teams_scraper.scrape_ncs_teams(
-                conn,
-                state=state,
-                age_division=age_division,
-                season_id=scrape_season_id,
-            )
-        except ValueError as exc:
-            return api_error("invalid_parameter", str(exc), 400)
-        except Exception as exc:
-            return api_error("scrape_failed", f"NCS scrape failed: {exc}", 502)
-
-    return result
 
 
 @app.put("/api/tournaments/{tournament_id}/shortlist")
