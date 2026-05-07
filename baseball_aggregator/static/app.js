@@ -1144,11 +1144,14 @@ function renderTeamAnalysisRows(teams) {
 
   for (const team of display) {
     const isSelected = analysisSelectedTeams.has(team.team_name);
+    const activeTournamentId = analysisTournamentFilterEl ? analysisTournamentFilterEl.value : "";
     const appearanceNames = (team.appearances || [])
       .map((a) => {
         const date = a.start_date ? ` (${a.start_date})` : "";
         const rec = a.record ? ` ${escapeHtml(a.record)}` : "";
-        return `<span class="appearance-chip">${escapeHtml(a.name)}${date}${rec}</span>`;
+        const isActive = activeTournamentId && String(a.id) === activeTournamentId;
+        const activeClass = isActive ? " appearance-chip--active" : "";
+        return `<span class="appearance-chip appearance-chip--clickable${activeClass}" data-tournament-id="${escapeHtml(String(a.id))}">${escapeHtml(a.name)}${date}${rec}</span>`;
       })
       .join("");
 
@@ -1225,6 +1228,13 @@ function populateAnalysisTournamentFilter(tournaments) {
 if (analysisTeamSearchEl) analysisTeamSearchEl.addEventListener("input", () => renderTeamAnalysisRows(teamAnalysisData));
 if (analysisMinGamesEl) analysisMinGamesEl.addEventListener("change", () => renderTeamAnalysisRows(teamAnalysisData));
 if (analysisTournamentFilterEl) analysisTournamentFilterEl.addEventListener("change", () => renderTeamAnalysisRows(teamAnalysisData));
+if (teamAnalysisRowsEl) teamAnalysisRowsEl.addEventListener("click", (e) => {
+  const chip = e.target.closest(".appearance-chip--clickable");
+  if (!chip || !analysisTournamentFilterEl) return;
+  const id = chip.dataset.tournamentId;
+  analysisTournamentFilterEl.value = analysisTournamentFilterEl.value === id ? "" : id;
+  renderTeamAnalysisRows(teamAnalysisData);
+});
 if (analysisCompareBtnEl) analysisCompareBtnEl.addEventListener("click", () => {
   analysisCompareMode = true;
   renderTeamAnalysisRows(teamAnalysisData);
