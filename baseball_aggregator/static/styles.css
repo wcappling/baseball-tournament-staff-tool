@@ -443,6 +443,10 @@ main {
   box-shadow: var(--shadow);
 }
 
+.toolbar[hidden] {
+  display: none;
+}
+
 /* ── Form elements ───────────────────────────────────────────────────────── */
 
 label {
