@@ -22,7 +22,7 @@ from baseball_aggregator.auth import (
 )
 from baseball_aggregator.config import get_backup_dir, hosted_jobs_enabled, require_hosted_config
 from baseball_aggregator.maintenance import create_sqlite_backup, prune_backups
-from baseball_aggregator import services
+from baseball_aggregator import services, stats
 from baseball_aggregator.storage import (
     connect,
     get_changes,
@@ -392,6 +392,23 @@ def api_refresh_runs():
 def api_v1_refresh_runs(session: dict[str, Any] = Depends(_native_session)):
     with connect() as conn:
         return latest_refresh_runs(conn)
+
+
+@app.get("/api/team-stats")
+def api_team_stats(age: str | None = None, request: Request = None):
+    with connect() as conn:
+        settings = get_settings(conn)
+        age_division = (age or settings["target_age_division"]).upper()
+        teams = stats.aggregate_team_records(conn, age_division)
+    return {
+        "age": age_division,
+        "teams": teams,
+        "total_teams": len(teams),
+        "note": (
+            "NCS records are available for all tournaments. "
+            "USSSA and Perfect Game records only appear for tournaments whose team lists have been loaded."
+        ),
+    }
 
 
 @app.put("/api/tournaments/{tournament_id}/shortlist")

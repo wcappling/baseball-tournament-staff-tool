@@ -593,6 +593,63 @@ textarea {
   border-bottom: 0;
 }
 
+/* ── Team Stats ────────────────────────────────────────────────────────────── */
+
+.team-stats-section {
+  margin-top: 14px;
+  padding: 14px;
+}
+
+.team-stats-section summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.team-stats-body {
+  margin-top: 10px;
+}
+
+.team-stats-note {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.team-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.team-stats-table th,
+.team-stats-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.team-stats-table th[data-stats-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.team-stats-table th[data-stats-sort]:hover {
+  color: var(--accent);
+}
+
+.team-stats-table td.record-cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.team-stats-table td.record-cumulative {
+  font-weight: 600;
+}
+
+.team-stats-table td.win-pct {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 900px) {
   h1 {
     font-size: 20px;

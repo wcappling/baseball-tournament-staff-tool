@@ -566,6 +566,14 @@ def latest_refresh_runs(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def get_hydrated_tournament_teams(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """Return (source, division_teams_json) for all tournaments with hydrated team data."""
+    rows = conn.execute(
+        "SELECT source, division_teams FROM tournaments WHERE division_teams != '{}'"
+    ).fetchall()
+    return [(row["source"], row["division_teams"]) for row in rows]
+
+
 def _tournament_payload(tournament: Tournament) -> dict[str, Any]:
     return {
         "source": tournament.source,
