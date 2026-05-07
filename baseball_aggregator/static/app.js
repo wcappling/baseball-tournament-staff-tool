@@ -826,12 +826,18 @@ const teamStatsRowsEl = document.querySelector("#teamStatsRows");
 const statsTeamSearchEl = document.querySelector("#statsTeamSearch");
 const statsMinGamesEl = document.querySelector("#statsMinGames");
 const statsApplyFilterEl = document.querySelector("#statsApplyFilter");
+const statsCompareBtnEl = document.querySelector("#statsCompareBtn");
 const statsClearSelectionEl = document.querySelector("#statsClearSelection");
 
 let teamStatsData = [];
 let teamStatsSortKey = "win_pct";
 let teamStatsSortDir = -1;
 let statsSelectedTeams = new Set();
+let statsCompareMode = false;
+
+function updateStatsCompareBtn() {
+  if (statsCompareBtnEl) statsCompareBtnEl.hidden = statsSelectedTeams.size === 0;
+}
 
 function formatWinPct(value) {
   if (value === null || value === undefined || isNaN(value)) return "—";
@@ -852,6 +858,7 @@ function getStatsFiltered(teams) {
   const search = statsTeamSearchEl ? statsTeamSearchEl.value.trim().toLowerCase() : "";
   const minGames = statsMinGamesEl ? Number(statsMinGamesEl.value) || 0 : 0;
   return teams.filter((team) => {
+    if (statsCompareMode && !statsSelectedTeams.has(team.team_name)) return false;
     if (team.total_games < minGames) return false;
     if (search && !team.team_name.toLowerCase().includes(search)) return false;
     return true;
@@ -889,6 +896,7 @@ function renderTeamStatsRows(teams) {
     cb.addEventListener("change", () => {
       if (cb.checked) statsSelectedTeams.add(cb.dataset.name);
       else statsSelectedTeams.delete(cb.dataset.name);
+      updateStatsCompareBtn();
       renderTeamStatsRows(teamStatsData);
     });
   });
@@ -923,9 +931,16 @@ document.querySelectorAll("th[data-stats-sort]").forEach((th) => {
 });
 
 if (statsTeamSearchEl) statsTeamSearchEl.addEventListener("input", () => renderTeamStatsRows(teamStatsData));
+if (statsTeamSearchEl) statsTeamSearchEl.addEventListener("input", () => renderTeamStatsRows(teamStatsData));
 if (statsApplyFilterEl) statsApplyFilterEl.addEventListener("click", () => renderTeamStatsRows(teamStatsData));
+if (statsCompareBtnEl) statsCompareBtnEl.addEventListener("click", () => {
+  statsCompareMode = true;
+  renderTeamStatsRows(teamStatsData);
+});
 if (statsClearSelectionEl) statsClearSelectionEl.addEventListener("click", () => {
   statsSelectedTeams.clear();
+  statsCompareMode = false;
+  updateStatsCompareBtn();
   renderTeamStatsRows(teamStatsData);
 });
 
@@ -1073,12 +1088,15 @@ const teamAnalysisNote = document.querySelector("#teamAnalysisNote");
 const teamAnalysisEmpty = document.querySelector("#teamAnalysisEmpty");
 const analysisTeamSearchEl = document.querySelector("#analysisTeamSearch");
 const analysisMinGamesEl = document.querySelector("#analysisMinGames");
+const analysisTournamentFilterEl = document.querySelector("#analysisTournamentFilter");
+const analysisCompareBtnEl = document.querySelector("#analysisCompareBtn");
 const analysisClearSelectionEl = document.querySelector("#analysisClearSelection");
 
 let teamAnalysisData = [];
 let teamAnalysisSortKey = "win_pct";
 let teamAnalysisSortDir = -1;
 let analysisSelectedTeams = new Set();
+let analysisCompareMode = false;
 
 function sortTeamAnalysis(items) {
   return [...items].sort((a, b) => {
@@ -1092,12 +1110,19 @@ function sortTeamAnalysis(items) {
 
 function getAnalysisFiltered(teams) {
   const search = analysisTeamSearchEl ? analysisTeamSearchEl.value.trim().toLowerCase() : "";
-  const minGames = analysisMinGamesEl ? Number(analysisMinGamesEl.value) || 1 : 1;
+  const minGames = analysisMinGamesEl ? Number(analysisMinGamesEl.value) || 0 : 0;
+  const tournamentId = analysisTournamentFilterEl ? analysisTournamentFilterEl.value : "";
   return teams.filter((team) => {
+    if (analysisCompareMode && !analysisSelectedTeams.has(team.team_name)) return false;
     if (team.total_games < minGames) return false;
     if (search && !team.team_name.toLowerCase().includes(search)) return false;
+    if (tournamentId && !(team.appearances || []).some((a) => String(a.id) === tournamentId)) return false;
     return true;
   });
+}
+
+function updateAnalysisCompareBtn() {
+  if (analysisCompareBtnEl) analysisCompareBtnEl.hidden = analysisSelectedTeams.size === 0;
 }
 
 function renderTeamAnalysisRows(teams) {
@@ -1125,7 +1150,7 @@ function renderTeamAnalysisRows(teams) {
         const rec = a.record ? ` ${escapeHtml(a.record)}` : "";
         return `<span class="appearance-chip">${escapeHtml(a.name)}${date}${rec}</span>`;
       })
-      .join(" ");
+      .join("");
 
     const tr = document.createElement("tr");
     if (isSelected) tr.classList.add("team-row-selected");
@@ -1148,6 +1173,7 @@ function renderTeamAnalysisRows(teams) {
     cb.addEventListener("change", () => {
       if (cb.checked) analysisSelectedTeams.add(cb.dataset.name);
       else analysisSelectedTeams.delete(cb.dataset.name);
+      updateAnalysisCompareBtn();
       renderTeamAnalysisRows(teamAnalysisData);
     });
   });
@@ -1162,6 +1188,7 @@ async function loadTeamAnalysis() {
     teamAnalysisData = data.teams || [];
     teamAnalysisLoaded = true;
     if (teamAnalysisNote) teamAnalysisNote.textContent = data.note || "";
+    populateAnalysisTournamentFilter(data.tournaments || []);
     renderTeamAnalysisRows(teamAnalysisData);
   } catch {
     if (teamAnalysisRowsEl) {
@@ -1179,10 +1206,33 @@ document.querySelectorAll("th[data-analysis-sort]").forEach((th) => {
   });
 });
 
+function populateAnalysisTournamentFilter(tournaments) {
+  if (!analysisTournamentFilterEl) return;
+  const current = analysisTournamentFilterEl.value;
+  while (analysisTournamentFilterEl.options.length > 1) analysisTournamentFilterEl.remove(1);
+  const sorted = [...tournaments].sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
+  for (const t of sorted) {
+    const opt = document.createElement("option");
+    opt.value = String(t.id);
+    opt.textContent = t.name + (t.start_date ? ` (${t.start_date})` : "");
+    analysisTournamentFilterEl.appendChild(opt);
+  }
+  if ([...analysisTournamentFilterEl.options].some((o) => o.value === current)) {
+    analysisTournamentFilterEl.value = current;
+  }
+}
+
 if (analysisTeamSearchEl) analysisTeamSearchEl.addEventListener("input", () => renderTeamAnalysisRows(teamAnalysisData));
 if (analysisMinGamesEl) analysisMinGamesEl.addEventListener("change", () => renderTeamAnalysisRows(teamAnalysisData));
+if (analysisTournamentFilterEl) analysisTournamentFilterEl.addEventListener("change", () => renderTeamAnalysisRows(teamAnalysisData));
+if (analysisCompareBtnEl) analysisCompareBtnEl.addEventListener("click", () => {
+  analysisCompareMode = true;
+  renderTeamAnalysisRows(teamAnalysisData);
+});
 if (analysisClearSelectionEl) analysisClearSelectionEl.addEventListener("click", () => {
   analysisSelectedTeams.clear();
+  analysisCompareMode = false;
+  updateAnalysisCompareBtn();
   renderTeamAnalysisRows(teamAnalysisData);
 });
 

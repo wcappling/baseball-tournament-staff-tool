@@ -15,7 +15,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     }());
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20260507-redesign-v2">
+  <link rel="stylesheet" href="/static/styles.css?v=20260507-redesign-v3">
 </head>
 <body>
 
@@ -326,14 +326,21 @@
           <label class="inline-filter-label">Search teams
             <input id="analysisTeamSearch" type="text" placeholder="Filter by team name…" class="inline-filter-input">
           </label>
+          <label class="inline-filter-label">Tournament
+            <select id="analysisTournamentFilter" class="inline-filter-select inline-filter-select--wide">
+              <option value="">All tournaments</option>
+            </select>
+          </label>
           <label class="inline-filter-label">Min games played
             <select id="analysisMinGames" class="inline-filter-select">
+              <option value="0">All</option>
               <option value="1">1+</option>
               <option value="3">3+</option>
               <option value="5">5+</option>
               <option value="10">10+</option>
             </select>
           </label>
+          <button id="analysisCompareBtn" type="button" class="inline-filter-btn inline-filter-btn--primary" hidden>Compare selected</button>
           <button id="analysisClearSelection" type="button" class="inline-filter-btn">Clear selection</button>
         </div>
         <div class="table-wrap">
@@ -377,6 +384,7 @@
             </select>
           </label>
           <button id="statsApplyFilter" type="button" class="inline-filter-btn inline-filter-btn--primary">Apply</button>
+          <button id="statsCompareBtn" type="button" class="inline-filter-btn inline-filter-btn--primary" hidden>Compare selected</button>
           <button id="statsClearSelection" type="button" class="inline-filter-btn">Clear selection</button>
         </div>
         <div class="table-wrap" id="teamStatsTableWrap">
@@ -410,6 +418,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260507-redesign-v2"></script>
+  <script src="/static/app.js?v=20260507-redesign-v3"></script>
 </body>
 </html>
