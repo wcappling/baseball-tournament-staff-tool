@@ -26,6 +26,11 @@ def is_hosted_mode() -> bool:
     )
 
 
+def dev_auto_login() -> bool:
+    """Skip the login screen entirely. Set DEV_AUTO_LOGIN=true in Railway Dev only."""
+    return os.getenv("DEV_AUTO_LOGIN", "").lower() in {"1", "true", "yes"}
+
+
 def auth_enabled() -> bool:
     return bool(os.getenv("STAFF_TOOL_PASSWORD")) or is_hosted_mode()
 

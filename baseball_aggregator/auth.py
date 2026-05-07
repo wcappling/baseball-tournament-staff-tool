@@ -11,7 +11,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from baseball_aggregator.config import auth_enabled, is_hosted_mode
+from baseball_aggregator.config import auth_enabled, dev_auto_login, is_hosted_mode
 from baseball_aggregator.storage import connect, verify_team_password
 
 COOKIE_NAME = "baseball_staff_session"
@@ -20,7 +20,7 @@ SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 
 class PasswordAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if not auth_enabled() or _is_public_path(request.url.path):
+        if not auth_enabled() or _is_public_path(request.url.path) or dev_auto_login():
             return await call_next(request)
 
         if request.url.path.startswith("/api/v1/") and _has_bearer_token(request):
