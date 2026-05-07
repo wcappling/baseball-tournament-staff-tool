@@ -1,15 +1,15 @@
-# TourneyIQ — Claude Code Notes
+# Tournament IQ — Claude Code Notes
 
 ## Branch & Deployment Strategy
 
 | Environment | Railway Service | GitHub Branch | When to merge |
 |---|---|---|---|
-| Dev | TourneyIQ Dev | `dev` | All active development PRs |
-| Prod | TourneyIQ Prod | `main` | Large batch releases from `dev` when stable |
+| Dev | Tournament IQ Dev | `dev` | All active development PRs |
+| Prod | Tournament IQ Prod | `main` | Large batch releases from `dev` when stable |
 
 **All feature PRs target `dev`.** Never create a PR targeting `main` unless explicitly requested for a production release.
 
-Railway auto-deploys from the connected branch on push — merging a PR to `dev` automatically redeploys TourneyIQ Dev. No separate trigger PR is needed.
+Railway auto-deploys from the connected branch on push — merging a PR to `dev` automatically redeploys Tournament IQ Dev. No separate trigger PR is needed.
 
 ## Repository Layout
 
@@ -23,7 +23,7 @@ Railway auto-deploys from the connected branch on push — merging a PR to `dev`
 
 | Variable | Service | Value | Purpose |
 |---|---|---|---|
-| `DEV_AUTO_LOGIN` | TourneyIQ Dev only | `true` | Bypasses the login screen entirely — any browser hits the dev URL without a password |
+| `DEV_AUTO_LOGIN` | Tournament IQ Dev only | `true` | Bypasses the login screen entirely — any browser hits the dev URL without a password |
 | `STAFF_TOOL_PASSWORD` | Both | (secret) | Shared staff password; also enables auth when set |
 | `SESSION_SECRET` | Both | (secret) | Signs session cookies |
 | `STAFF_TOOL_DATA_DIR` | Both | (path) | SQLite data directory |
