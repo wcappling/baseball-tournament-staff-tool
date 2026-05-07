@@ -38,14 +38,24 @@
         </svg>
         <span>Tournaments</span>
       </button>
-      <button class="nav-item" id="sidebarTeamsBtn" type="button">
+
+      <!-- Teams group -->
+      <div class="nav-section">
+        <span class="nav-section-label">Teams</span>
+        <button class="nav-subitem" id="sidebarTeamsAnalysisBtn" type="button">
+          <span>Interested / Registered</span>
+        </button>
+        <button class="nav-subitem" id="sidebarTeamsStatsBtn" type="button">
+          <span>All Team Stats</span>
+        </button>
+      </div>
+
+      <button class="nav-item" id="sidebarChangelogBtn" type="button">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-          <circle cx="9" cy="7" r="4"/>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
         </svg>
-        <span>Teams</span>
+        <span>Change Log</span>
       </button>
     </nav>
   </aside>
@@ -83,6 +93,21 @@
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
               Teams
+            </button>
+            <button class="mobile-nav-item" id="mobileTeamsStatsBtn" type="button" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+              All Team Stats
+            </button>
+            <button class="mobile-nav-item" id="mobileChangelogBtn" type="button" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              Change Log
             </button>
           </div>
         </div>
@@ -236,44 +261,13 @@
             </table>
           </div>
         </details>
-
-        <details class="change-log">
-          <summary>Change Log</summary>
-          <div id="changes" class="changes"></div>
-        </details>
-
-        <details class="team-stats-section" id="teamStatsSection">
-          <summary>
-            All Team Stats
-            <span id="teamStatsCount" class="subtle"></span>
-          </summary>
-          <div class="team-stats-body">
-            <p id="teamStatsNote" class="team-stats-note subtle"></p>
-            <div class="table-wrap" id="teamStatsTableWrap">
-              <table class="team-stats-table" id="teamStatsTable">
-                <thead>
-                  <tr>
-                    <th data-stats-sort="team_name">Team</th>
-                    <th data-stats-sort="city_state">City/State</th>
-                    <th data-stats-sort="ncs_record">NCS</th>
-                    <th data-stats-sort="usssa_record">USSSA</th>
-                    <th data-stats-sort="perfect_game_record">Perfect Game</th>
-                    <th data-stats-sort="cumulative_record">Cumulative</th>
-                    <th data-stats-sort="win_pct">Win%</th>
-                    <th data-stats-sort="total_games">Games</th>
-                  </tr>
-                </thead>
-                <tbody id="teamStatsRows"></tbody>
-              </table>
-            </div>
-          </div>
-        </details>
       </section>
 
-      <!-- ── Teams view ─────────────────────────────────────────────────── -->
-      <section id="teamsView" hidden>
-        <div class="team-analysis-header">
-          <p id="teamAnalysisNote" class="team-stats-note subtle"></p>
+      <!-- ── Interested / Registered Teams view ────────────────────────── -->
+      <section id="teamsAnalysisView" hidden>
+        <div class="section-header">
+          <h2 class="section-title">Interested / Registered Teams</h2>
+          <p id="teamAnalysisNote" class="subtle"></p>
           <p id="teamAnalysisEmpty" class="subtle" hidden>
             No teams found. Mark tournaments as <strong>Interested</strong> or <strong>Registered</strong> and load their team lists to see data here.
           </p>
@@ -296,6 +290,39 @@
             <tbody id="teamAnalysisRows"></tbody>
           </table>
         </div>
+      </section>
+
+      <!-- ── All Team Stats view ────────────────────────────────────────── -->
+      <section id="teamsStatsView" hidden>
+        <div class="section-header">
+          <h2 class="section-title">All Team Stats <span id="teamStatsCount" class="subtle"></span></h2>
+          <p id="teamStatsNote" class="subtle"></p>
+        </div>
+        <div class="table-wrap" id="teamStatsTableWrap">
+          <table class="team-stats-table" id="teamStatsTable">
+            <thead>
+              <tr>
+                <th data-stats-sort="team_name">Team</th>
+                <th data-stats-sort="city_state">City/State</th>
+                <th data-stats-sort="ncs_record">NCS</th>
+                <th data-stats-sort="usssa_record">USSSA</th>
+                <th data-stats-sort="perfect_game_record">Perfect Game</th>
+                <th data-stats-sort="cumulative_record">Cumulative</th>
+                <th data-stats-sort="win_pct">Win%</th>
+                <th data-stats-sort="total_games">Games</th>
+              </tr>
+            </thead>
+            <tbody id="teamStatsRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── Change Log view ────────────────────────────────────────────── -->
+      <section id="changelogView" hidden>
+        <div class="section-header">
+          <h2 class="section-title">Change Log</h2>
+        </div>
+        <div id="changes" class="changes"></div>
       </section>
     </main>
   </div>
