@@ -837,24 +837,97 @@ textarea {
   border-bottom: 0;
 }
 
-/* ── Team Stats section ───────────────────────────────────────────────────── */
+/* ── Sidebar subitems (Teams section) ─────────────────────────────────────── */
 
-.team-stats-section {
-  margin-top: 14px;
-  padding: 14px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+.nav-section {
+  margin-top: 4px;
 }
 
-.team-stats-section summary {
-  cursor: pointer;
+.nav-section-label {
+  display: block;
+  padding: 8px 12px 4px;
+  font-size: 10px;
   font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
 }
 
-.team-stats-body {
-  margin-top: 10px;
+.nav-subitem {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px 8px 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  text-align: left;
+  transition: background 140ms ease, color 140ms ease;
+  white-space: nowrap;
 }
+
+.nav-subitem:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.nav-subitem.active {
+  background: var(--brand-primary);
+  color: var(--brand-on-primary);
+  font-weight: 600;
+}
+
+/* ── Content section headers ───────────────────────────────────────────────── */
+
+.section-header {
+  padding: 16px 16px 8px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+/* ── Skill Level Badges ────────────────────────────────────────────────────── */
+
+.skill-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.skill-badge--elite---national   { background: #7c3aed22; color: #7c3aed; }
+.skill-badge--high-competitive   { background: #dc262622; color: #dc2626; }
+.skill-badge--middle-competitive { background: #d9770622; color: #d97706; }
+.skill-badge--developmental      { background: #16a34a22; color: #16a34a; }
+
+/* ── Teams / Analysis ──────────────────────────────────────────────────────── */
+
+.appearance-list {
+  max-width: 320px;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.appearance-chip {
+  display: inline-block;
+  background: var(--pill);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  margin: 2px 2px 2px 0;
+}
+
 
 .team-stats-note {
   margin-bottom: 10px;

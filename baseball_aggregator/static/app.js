@@ -100,6 +100,30 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+// Skill level    USSSA     NCS              PG
+// Elite/Nat      Major     —                Majors
+// High Comp      AAA       D1: Division 1   AAA
+// Middle Comp    AA        D2: Division 2   AA
+// Developmental  A         D3: Division 3   —
+function skillLevel(source, division) {
+  const d = (division || "").toLowerCase();
+  if (source === "usssa") {
+    if (d.includes("major")) return "Elite / National";
+    if (d.includes("aaa"))   return "High Competitive";
+    if (d.includes("aa"))    return "Middle Competitive";
+    if (/\ba\b/.test(d))     return "Developmental";
+  } else if (source === "ncs") {
+    if (d.includes("d1") || d.includes("division 1")) return "High Competitive";
+    if (d.includes("d2") || d.includes("division 2")) return "Middle Competitive";
+    if (d.includes("d3") || d.includes("division 3")) return "Developmental";
+  } else if (source === "perfect_game") {
+    if (d.includes("major")) return "Elite / National";
+    if (d.includes("aaa"))   return "High Competitive";
+    if (d.includes("aa"))    return "Middle Competitive";
+  }
+  return null;
+}
+
 function renderTeamRows(item) {
   const teams = item.selected_age_teams || [];
   if (!teams.length) {
@@ -122,9 +146,12 @@ function renderTeamRows(item) {
     <div class="team-division-groups">
       ${orderedDivisions
         .filter((division) => (teamsByDivision[division] || []).length)
-        .map((division) => `
+        .map((division) => {
+          const level = skillLevel(item.source, division);
+          const levelBadge = level ? `<span class="skill-badge skill-badge--${level.toLowerCase().replace(/[^a-z]/g, "-")}">${escapeHtml(level)}</span>` : "";
+          return `
           <section class="team-division-group">
-            <h3>${escapeHtml(division)}</h3>
+            <h3>${escapeHtml(division)} ${levelBadge}</h3>
             <table class="team-list">
               <thead>
                 <tr>
@@ -155,7 +182,7 @@ function renderTeamRows(item) {
               </tbody>
             </table>
           </section>
-        `).join("")}
+        `}).join("")}
     </div>
   `;
 }
@@ -420,7 +447,8 @@ async function saveShortlist(id) {
     method: "PUT",
     body: JSON.stringify({ status, priority: 3, notes }),
   });
-  await loadChanges();
+  // Keep change log fresh if it's already been loaded
+  if (changesLoaded) await loadChanges();
 }
 
 async function loadSettings() {
@@ -682,6 +710,7 @@ async function loadTeamStatsMap() {
 }
 
 async function loadChanges() {
+  changesLoaded = true;
   const changes = await api("/api/changes");
   changesEl.innerHTML = changes.length ? "" : '<p class="subtle">No changes recorded yet.</p>';
   for (const change of changes) {
@@ -726,15 +755,10 @@ document.querySelector("#refreshBtn").addEventListener("click", async () => {
     await api("/api/refresh", { method: "POST", body: JSON.stringify({}) });
     await loadDivisions();
     await Promise.all([loadTournaments(), loadTeamStatsMap()]);
-    await loadChanges();
-    // Reload team analysis if Teams tab is open
-    if (activeView === "teams") {
-      teamAnalysisLoaded = false;
-      await loadTeamAnalysis();
-    }
-    // Reset Team Stats collapsible so it reloads next time it's opened
-    teamStatsData = [];
-    if (teamStatsCount) teamStatsCount.textContent = "";
+    // Reload whichever view is currently open
+    if (activeView === "teams-analysis") { teamAnalysisLoaded = false; await loadTeamAnalysis(); }
+    if (activeView === "teams-stats")    { teamStatsData = []; await loadTeamStats(); }
+    if (activeView === "changelog")      { changesLoaded = false; await loadChanges(); }
   } finally {
     document.querySelector("#refreshBtn").textContent = "Refresh";
   }
@@ -765,7 +789,6 @@ if (tableWrap) {
 
 // ── Team Stats ──────────────────────────────────────────────────────────────
 
-const teamStatsSection = document.querySelector("#teamStatsSection");
 const teamStatsCount = document.querySelector("#teamStatsCount");
 const teamStatsNote = document.querySelector("#teamStatsNote");
 const teamStatsRowsEl = document.querySelector("#teamStatsRows");
@@ -827,14 +850,6 @@ async function loadTeamStats() {
   }
 }
 
-if (teamStatsSection) {
-  teamStatsSection.addEventListener("toggle", () => {
-    if (teamStatsSection.open && teamStatsData.length === 0) {
-      loadTeamStats();
-    }
-  });
-}
-
 document.querySelectorAll("th[data-stats-sort]").forEach((th) => {
   th.addEventListener("click", () => {
     const next = th.dataset.statsSort;
@@ -844,14 +859,7 @@ document.querySelectorAll("th[data-stats-sort]").forEach((th) => {
   });
 });
 
-// Reload team stats when age filter changes (if section is open)
-if (ageFilter && teamStatsSection) {
-  ageFilter.addEventListener("change", () => {
-    if (teamStatsSection.open) loadTeamStats();
-  });
-}
-
-// ── Sidebar & Navigation ─────────────────────────────────────────────────────
+// ── Sidebar toggle (hamburger) ───────────────────────────────────────────────
 
 const sidebar = document.querySelector("#sidebar");
 const sidebarToggleBtn = document.querySelector("#sidebarToggle");
@@ -884,7 +892,6 @@ if (sidebarToggleBtn) {
   });
 }
 
-// Close mobile nav when window grows past mobile breakpoint
 window.addEventListener("resize", () => {
   if (!isMobileLayout() && mobileNav && !mobileNav.hidden) {
     mobileNav.hidden = true;
@@ -893,42 +900,63 @@ window.addEventListener("resize", () => {
 
 // ── View switching ───────────────────────────────────────────────────────────
 
-const tournamentsView = document.querySelector("#tournamentsView");
-const teamsView = document.querySelector("#teamsView");
-const sidebarTournamentsBtn = document.querySelector("#sidebarTournamentsBtn");
-const sidebarTeamsBtn = document.querySelector("#sidebarTeamsBtn");
-const mobileTournamentsBtn = document.querySelector("#mobileTournamentsBtn");
-const mobileTeamsBtn = document.querySelector("#mobileTeamsBtn");
+const tournamentsView      = document.querySelector("#tournamentsView");
+const teamsAnalysisView    = document.querySelector("#teamsAnalysisView");
+const teamsStatsView       = document.querySelector("#teamsStatsView");
+const changelogView        = document.querySelector("#changelogView");
+
+const sidebarTournamentsBtn    = document.querySelector("#sidebarTournamentsBtn");
+const sidebarTeamsAnalysisBtn  = document.querySelector("#sidebarTeamsAnalysisBtn");
+const sidebarTeamsStatsBtn     = document.querySelector("#sidebarTeamsStatsBtn");
+const sidebarChangelogBtn      = document.querySelector("#sidebarChangelogBtn");
+const mobileTournamentsBtn     = document.querySelector("#mobileTournamentsBtn");
+const mobileTeamsBtn           = document.querySelector("#mobileTeamsBtn");
+const mobileTeamsStatsBtn      = document.querySelector("#mobileTeamsStatsBtn");
+const mobileChangelogBtn       = document.querySelector("#mobileChangelogBtn");
 
 let activeView = "tournaments";
 let teamAnalysisLoaded = false;
+let changesLoaded = false;
+
+const ALL_VIEWS = {
+  "tournaments":    tournamentsView,
+  "teams-analysis": teamsAnalysisView,
+  "teams-stats":    teamsStatsView,
+  "changelog":      changelogView,
+};
+
+const ALL_NAV_BTNS = {
+  "tournaments":    [sidebarTournamentsBtn, mobileTournamentsBtn],
+  "teams-analysis": [sidebarTeamsAnalysisBtn, mobileTeamsBtn],
+  "teams-stats":    [sidebarTeamsStatsBtn, mobileTeamsStatsBtn],
+  "changelog":      [sidebarChangelogBtn, mobileChangelogBtn],
+};
 
 function switchView(view) {
   activeView = view;
-  const showTournaments = view === "tournaments";
-  if (tournamentsView) tournamentsView.hidden = !showTournaments;
-  if (teamsView) teamsView.hidden = showTournaments;
-  [sidebarTournamentsBtn, mobileTournamentsBtn].forEach((btn) => {
-    if (btn) btn.classList.toggle("active", showTournaments);
-  });
-  [sidebarTeamsBtn, mobileTeamsBtn].forEach((btn) => {
-    if (btn) btn.classList.toggle("active", !showTournaments);
-  });
-  if (view === "teams" && !teamAnalysisLoaded) {
-    loadTeamAnalysis();
+  for (const [key, el] of Object.entries(ALL_VIEWS)) {
+    if (el) el.hidden = key !== view;
   }
+  for (const [key, btns] of Object.entries(ALL_NAV_BTNS)) {
+    for (const btn of btns) {
+      if (btn) btn.classList.toggle("active", key === view);
+    }
+  }
+  if (view === "teams-analysis" && !teamAnalysisLoaded) loadTeamAnalysis();
+  if (view === "teams-stats"    && teamStatsData.length === 0) loadTeamStats();
+  if (view === "changelog"      && !changesLoaded) loadChanges();
+  if (mobileNav && isMobileLayout()) mobileNav.hidden = true;
 }
 
-if (sidebarTournamentsBtn) sidebarTournamentsBtn.addEventListener("click", () => switchView("tournaments"));
-if (sidebarTeamsBtn) sidebarTeamsBtn.addEventListener("click", () => switchView("teams"));
-if (mobileTournamentsBtn) mobileTournamentsBtn.addEventListener("click", () => {
-  switchView("tournaments");
-  if (mobileNav) mobileNav.hidden = true;
-});
-if (mobileTeamsBtn) mobileTeamsBtn.addEventListener("click", () => {
-  switchView("teams");
-  if (mobileNav) mobileNav.hidden = true;
-});
+if (sidebarTournamentsBtn)   sidebarTournamentsBtn.addEventListener("click",   () => switchView("tournaments"));
+if (sidebarTeamsAnalysisBtn) sidebarTeamsAnalysisBtn.addEventListener("click", () => switchView("teams-analysis"));
+if (sidebarTeamsStatsBtn)    sidebarTeamsStatsBtn.addEventListener("click",    () => switchView("teams-stats"));
+if (sidebarChangelogBtn)     sidebarChangelogBtn.addEventListener("click",     () => switchView("changelog"));
+if (mobileTournamentsBtn)    mobileTournamentsBtn.addEventListener("click",    () => switchView("tournaments"));
+if (mobileTeamsBtn)          mobileTeamsBtn.addEventListener("click",          () => switchView("teams-analysis"));
+if (mobileTeamsStatsBtn)     mobileTeamsStatsBtn.addEventListener("click",     () => switchView("teams-stats"));
+if (mobileChangelogBtn)      mobileChangelogBtn.addEventListener("click",      () => switchView("changelog"));
+
 
 // ── Team Analysis Page ───────────────────────────────────────────────────────
 
@@ -1011,13 +1039,11 @@ document.querySelectorAll("th[data-analysis-sort]").forEach((th) => {
   });
 });
 
-// Reload team analysis when age filter changes (if Teams tab is active)
+// Reload data when age filter changes based on active view
 if (ageFilter) {
   ageFilter.addEventListener("change", () => {
-    if (activeView === "teams") {
-      teamAnalysisLoaded = false;
-      loadTeamAnalysis();
-    }
+    if (activeView === "teams-analysis") { teamAnalysisLoaded = false; loadTeamAnalysis(); }
+    if (activeView === "teams-stats")    { teamStatsData = []; loadTeamStats(); }
   });
 }
 
@@ -1027,5 +1053,4 @@ initTheme();
 setDefaultDateFilters();
 loadSettings()
   .then(loadDivisions)
-  .then(() => Promise.all([loadTournaments(), loadTeamStatsMap()]))
-  .then(loadChanges);
+  .then(() => Promise.all([loadTournaments(), loadTeamStatsMap()]));
