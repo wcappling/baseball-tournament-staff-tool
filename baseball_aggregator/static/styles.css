@@ -1,3 +1,9 @@
+/* ── CSS Variables ───────────────────────────────────────────────────────────
+   Light-mode defaults; all overridden when data-theme="dark" is applied.
+   Brand-specific tokens (--brand-*, --accent, --page, --surface, etc.) are
+   further overridden at runtime by teamThemeTokens() in app.js.
+   ───────────────────────────────────────────────────────────────────────── */
+
 :root {
   --ink: #16202a;
   --muted: #576779;
@@ -27,6 +33,8 @@
   --status-interested: #e0f2fe;
   --status-registered: #dcfce7;
   --status-declined: #fee2e2;
+  --sidebar-bg: #0a1520;
+  --sidebar-width: 220px;
 }
 
 :root[data-theme="dark"] {
@@ -58,14 +66,27 @@
   --status-interested: #113047;
   --status-registered: #143322;
   --status-declined: #3d1e24;
+  --sidebar-bg: #060e18;
 }
 
-* {
+/* ── Reset & Base ────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
   margin: 0;
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
   color: var(--ink);
   background: var(--page);
   font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -73,9 +94,37 @@ body {
   transition: background-color 150ms ease, color 150ms ease;
 }
 
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+a {
+  color: var(--link);
+}
+
+a:hover {
+  color: var(--link-hover);
+}
+
+/* ── Login page override ─────────────────────────────────────────────────── */
+
 body.login-page {
-  min-height: 100vh;
   display: grid;
+  height: auto;
+  min-height: 100dvh;
+  overflow: auto;
   place-items: center;
 }
 
@@ -90,7 +139,7 @@ body.login-page {
   padding: 22px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow: var(--shadow);
 }
 
@@ -99,107 +148,302 @@ body.login-page {
   font-weight: 700;
 }
 
-.topbar {
-  position: relative;
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  flex-shrink: 0;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  padding: 18px 22px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-  box-shadow: var(--shadow);
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* Sidebar text is always light because sidebar background is always dark */
+  color: rgba(255, 255, 255, 0.75);
 }
 
-.topbar::before {
-  content: "";
-  position: absolute;
-  left: 8px;
-  top: 12px;
-  bottom: 12px;
-  width: 5px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--brand-secondary), var(--brand-primary));
+.sidebar.closed {
+  width: 0;
 }
 
-.team-identity {
+.sidebar-brand {
   display: flex;
   align-items: center;
-  min-width: 0;
-  gap: 12px;
+  gap: 10px;
+  padding: 18px 16px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  white-space: nowrap;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.team-logo-frame {
-  width: 56px;
-  height: 56px;
-  flex: 0 0 auto;
+.sidebar-app-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+/* Sidebar team logo */
+.sidebar .team-logo-frame {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.team-logo-frame[hidden] {
+.sidebar .team-logo-frame[hidden] {
   display: none;
 }
 
-.team-logo-frame img {
+.sidebar .team-logo-frame img {
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
+/* Sidebar navigation */
+.sidebar-nav {
+  flex: 1;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
+  min-height: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.nav-item svg {
+  flex-shrink: 0;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 1px;
+}
+
+.nav-item.active {
+  background: var(--brand-primary);
+  color: var(--brand-on-primary);
+}
+
+/* ── App shell ───────────────────────────────────────────────────────────── */
+
+.app-shell {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header / Topbar ─────────────────────────────────────────────────────── */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  flex-shrink: 0;
+  min-height: 58px;
+}
+
+.topbar-start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Hamburger + mobile nav dropdown anchor */
+.menu-anchor {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.icon-btn:hover {
+  background: var(--panel);
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* Theme toggle icon visibility */
+.theme-icon-sun,
+.theme-icon-moon {
+  display: none;
+  flex-shrink: 0;
+}
+
+:root[data-theme="dark"] .theme-icon-sun {
+  display: block;
+}
+
+:root[data-theme="light"] .theme-icon-moon {
+  display: block;
+}
+
+/* Mobile navigation dropdown (shown when hamburger is tapped on mobile) */
+.mobile-nav {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 22%);
+  overflow: hidden;
+  padding: 6px;
+}
+
+.mobile-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  width: 100%;
+  min-height: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.mobile-nav-item:hover {
+  background: var(--panel);
+}
+
+.mobile-nav-item.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  font-weight: 600;
+}
+
+.mobile-nav-item svg {
+  flex-shrink: 0;
+}
+
+/* Team identity in header */
+.team-identity {
+  min-width: 0;
+}
+
+.team-identity h1 {
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.team-identity p {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Topbar action buttons */
 .topbar-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
-
 
 #logoutBtn {
-  min-width: 88px;
+  min-width: 80px;
 }
 
-h1,
-h2,
-p {
-  margin: 0;
-}
-
-h1 {
-  font-size: 24px;
-  font-weight: 700;
-}
-
-h2 {
-  font-size: 16px;
-  margin-bottom: 12px;
-}
-
-.topbar p {
-  color: var(--muted);
-  margin-top: 4px;
-}
+/* ── Main content area ───────────────────────────────────────────────────── */
 
 main {
-  width: min(100%, 1400px);
-  margin: 0 auto;
-  padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 16px 20px;
 }
+
+/* ── Filter toolbar ──────────────────────────────────────────────────────── */
 
 .toolbar {
   display: grid;
-  grid-template-columns: repeat(8, minmax(120px, 1fr)) auto;
+  grid-template-columns: repeat(8, minmax(110px, 1fr)) auto;
   gap: 10px;
   align-items: end;
   margin-bottom: 14px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: 10px;
+  padding: 12px;
   box-shadow: var(--shadow);
 }
+
+/* ── Form elements ───────────────────────────────────────────────────────── */
 
 label {
   display: grid;
@@ -286,13 +530,12 @@ button {
   padding: 6px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow: 0 10px 24px rgb(8 15 26 / 18%);
 }
 
 .division-option {
   display: flex;
-  grid-template-columns: none;
   align-items: center;
   gap: 8px;
   min-height: 30px;
@@ -327,6 +570,7 @@ button.primary {
 
 button.primary:hover {
   background: var(--accent-dark);
+  border-color: var(--accent-dark);
 }
 
 button:focus-visible,
@@ -339,11 +583,13 @@ a:focus-visible {
   outline-offset: 1px;
 }
 
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+
 .table-wrap,
 .change-log {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .table-wrap {
@@ -399,13 +645,7 @@ td {
   font-size: 14px;
 }
 
-a {
-  color: var(--link);
-}
-
-a:hover {
-  color: var(--link-hover);
-}
+/* ── Common utilities ────────────────────────────────────────────────────── */
 
 .name {
   font-weight: 700;
@@ -415,6 +655,8 @@ a:hover {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* ── Status pills ────────────────────────────────────────────────────────── */
 
 .pill {
   display: inline-block;
@@ -461,6 +703,8 @@ textarea {
   resize: vertical;
 }
 
+/* ── Team list (tournament expand) ───────────────────────────────────────── */
+
 .teams-toggle {
   white-space: nowrap;
 }
@@ -502,7 +746,7 @@ textarea {
 
 .division-panel {
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 10px;
   background: var(--input-bg);
 }
@@ -550,7 +794,6 @@ textarea {
   gap: 8px;
 }
 
-
 .mobile-registered {
   display: none;
   font-weight: 700;
@@ -564,6 +807,8 @@ textarea {
   white-space: nowrap;
 }
 
+/* ── Collapsible sections ────────────────────────────────────────────────── */
+
 .change-log {
   margin-top: 14px;
   padding: 14px;
@@ -572,13 +817,12 @@ textarea {
 .declined-section {
   margin-top: 14px;
   padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
 
-.declined-section summary {
-  cursor: pointer;
-  font-weight: 700;
-}
-
+.declined-section summary,
 .change-log summary {
   cursor: pointer;
   font-weight: 700;
@@ -593,67 +837,14 @@ textarea {
   border-bottom: 0;
 }
 
-/* ── View Tabs ─────────────────────────────────────────────────────────────── */
-
-.view-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 10px 14px 0;
-  border-bottom: 2px solid var(--line);
-}
-
-.view-tab {
-  padding: 8px 18px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--muted);
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.view-tab:hover {
-  color: var(--ink);
-}
-
-.view-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-
-/* ── Team Analysis Page ────────────────────────────────────────────────────── */
-
-#teamsView {
-  padding: 14px;
-}
-
-.team-analysis-header {
-  margin-bottom: 12px;
-}
-
-.appearance-list {
-  max-width: 320px;
-  white-space: normal;
-  line-height: 1.5;
-}
-
-.appearance-chip {
-  display: inline-block;
-  background: var(--pill);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 12px;
-  margin: 2px 2px 2px 0;
-}
-
-/* ── Team Stats ────────────────────────────────────────────────────────────── */
+/* ── Team Stats section ───────────────────────────────────────────────────── */
 
 .team-stats-section {
   margin-top: 14px;
   padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
 
 .team-stats-section summary {
@@ -684,12 +875,14 @@ textarea {
   white-space: nowrap;
 }
 
-.team-stats-table th[data-stats-sort] {
+.team-stats-table th[data-stats-sort],
+.team-stats-table th[data-analysis-sort] {
   cursor: pointer;
   user-select: none;
 }
 
-.team-stats-table th[data-stats-sort]:hover {
+.team-stats-table th[data-stats-sort]:hover,
+.team-stats-table th[data-analysis-sort]:hover {
   color: var(--accent);
 }
 
@@ -706,28 +899,34 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Team Analysis view ──────────────────────────────────────────────────── */
+
+#teamsView {
+  padding: 4px 0;
+}
+
+.team-analysis-header {
+  margin-bottom: 12px;
+}
+
+.appearance-list {
+  max-width: 320px;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.appearance-chip {
+  display: inline-block;
+  background: var(--pill);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  margin: 2px 2px 2px 0;
+}
+
+/* ── Responsive: tablet (hide sidebar by default, keep hamburger) ─────────── */
+
 @media (max-width: 900px) {
-  h1 {
-    font-size: 20px;
-  }
-
-  .topbar {
-    display: grid;
-    grid-template-columns: 1fr;
-    align-items: start;
-    gap: 12px;
-    padding: 14px;
-  }
-
-  .topbar-actions {
-    justify-content: start;
-    flex-wrap: wrap;
-  }
-
-  .topbar-actions button {
-    flex: 1 1 140px;
-  }
-
   .toolbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
@@ -740,7 +939,6 @@ textarea {
   #applyFilters {
     grid-column: 1 / -1;
     width: 100%;
-    justify-self: stretch;
   }
 
   .division-breakdown {
@@ -752,44 +950,54 @@ textarea {
   }
 }
 
+/* ── Responsive: mobile ─────────────────────────────────────────────────── */
 
-@media (max-width: 700px) {
-  .table-wrap > table .col-source,
-  .table-wrap > table .col-distance {
+@media (max-width: 767px) {
+  /* Hide desktop sidebar on mobile — navigation handled by dropdown */
+  .sidebar {
     display: none;
   }
 
-  .table-wrap > table > tbody > tr:not(.team-details-row) {
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    margin: 10px;
-    background: var(--surface);
-    box-shadow: var(--shadow);
+  .topbar {
+    padding: 8px 12px;
   }
 
-  .table-wrap > table > tbody > tr.status-watch:not(.team-details-row) {
-    background: var(--status-watch);
+  .team-identity h1 {
+    font-size: 16px;
   }
 
-  .table-wrap > table > tbody > tr.status-interested:not(.team-details-row) {
-    background: var(--status-interested);
+  .topbar-actions {
+    gap: 6px;
   }
 
-  .table-wrap > table > tbody > tr.status-registered:not(.team-details-row) {
-    background: var(--status-registered);
+  #logoutBtn {
+    min-width: 0;
+    flex: 0 0 44px;
+    width: 44px;
+    padding-inline: 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0;
   }
 
-  .table-wrap > table > tbody > tr.status-declined:not(.team-details-row) {
-    background: var(--status-declined);
+  #logoutBtn::before {
+    content: "↪";
+    font-size: 18px;
+    line-height: 1;
   }
 
-  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(3) .subtle,
-  .desktop-registered {
-    display: none;
-  }
-
-  .mobile-registered {
-    display: inline;
+  #logoutBtn .logout-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    border: 0;
+    white-space: nowrap;
   }
 }
 
@@ -818,7 +1026,7 @@ textarea {
   }
 
   main {
-    padding: 12px;
+    padding: 10px 10px 16px;
   }
 
   .toolbar {
@@ -834,6 +1042,13 @@ textarea {
     min-width: 0;
   }
 
+  /* Hide source/distance columns to save horizontal space */
+  .table-wrap > table .col-source,
+  .table-wrap > table .col-distance {
+    display: none;
+  }
+
+  /* Card layout for tournament rows */
   .table-wrap > table > thead {
     display: none;
   }
@@ -842,7 +1057,36 @@ textarea {
     display: grid;
     gap: 8px;
     padding: 12px;
-    border-bottom: 1px solid var(--line);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin: 10px 0;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .table-wrap > table > tbody > tr.status-watch:not(.team-details-row) {
+    background: var(--status-watch);
+  }
+
+  .table-wrap > table > tbody > tr.status-interested:not(.team-details-row) {
+    background: var(--status-interested);
+  }
+
+  .table-wrap > table > tbody > tr.status-registered:not(.team-details-row) {
+    background: var(--status-registered);
+  }
+
+  .table-wrap > table > tbody > tr.status-declined:not(.team-details-row) {
+    background: var(--status-declined);
+  }
+
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(3) .subtle,
+  .desktop-registered {
+    display: none;
+  }
+
+  .mobile-registered {
+    display: inline;
   }
 
   .table-wrap > table > tbody > tr:not(.team-details-row) > td {
@@ -886,7 +1130,6 @@ textarea {
   }
 }
 
-
 @media (max-width: 480px) {
   .table-wrap > table > tbody > tr:not(.team-details-row) > td {
     grid-template-columns: 1fr;
@@ -895,44 +1138,5 @@ textarea {
 
   .table-wrap > table > tbody > tr:not(.team-details-row) > td::before {
     display: block;
-  }
-
-  .topbar-actions {
-    width: 100%;
-    gap: 6px;
-  }
-
-  .topbar-actions button {
-    flex: 1 1 110px;
-    padding-inline: 9px;
-  }
-
-  #logoutBtn {
-    flex: 0 0 44px;
-    min-width: 44px;
-    padding-inline: 0;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 0;
-  }
-
-  #logoutBtn::before {
-    content: "↪";
-    font-size: 18px;
-    line-height: 1;
-  }
-
-  #logoutBtn .logout-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    border: 0;
-    white-space: nowrap;
   }
 }
