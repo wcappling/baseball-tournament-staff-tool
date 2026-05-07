@@ -41,7 +41,7 @@
   --ink: #e6eef8;
   --muted: #9daec3;
   --line: #2b3a4c;
-  --panel: #131e2b;
+  --panel: #191919;
   --accent: #14b8a6;
   --accent-dark: #0ea5a2;
   --brand-primary: #14b8a6;
@@ -50,8 +50,8 @@
   --brand-on-primary: #07101b;
   --warn: #fbbf24;
   --good: #4ade80;
-  --surface: #182432;
-  --page: #0b121b;
+  --surface: #131313;
+  --page: #080808;
   --link: #67c7ff;
   --link-hover: #9fe0ff;
   --detail: #101a27;
@@ -60,13 +60,13 @@
   --pill-warn: #4b3c1a;
   --th-ink: #c8d6e8;
   --shadow: 0 1px 2px rgb(0 0 0 / 40%);
-  --input-bg: #101a27;
+  --input-bg: #0c0c0c;
   --focus: #22d3ee;
   --status-watch: #1a2736;
   --status-interested: #113047;
   --status-registered: #143322;
   --status-declined: #3d1e24;
-  --sidebar-bg: #060e18;
+  --sidebar-bg: #030303;
 }
 
 /* ── Reset & Base ────────────────────────────────────────────────────────── */
