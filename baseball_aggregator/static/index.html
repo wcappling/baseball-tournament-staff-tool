@@ -157,6 +157,33 @@
         <summary>Change Log</summary>
         <div id="changes" class="changes"></div>
       </details>
+
+      <details class="team-stats-section" id="teamStatsSection">
+        <summary>
+          Team Stats
+          <span id="teamStatsCount" class="subtle"></span>
+        </summary>
+        <div class="team-stats-body">
+          <p id="teamStatsNote" class="team-stats-note subtle"></p>
+          <div class="table-wrap" id="teamStatsTableWrap">
+            <table class="team-stats-table" id="teamStatsTable">
+              <thead>
+                <tr>
+                  <th data-stats-sort="team_name">Team</th>
+                  <th data-stats-sort="city_state">City/State</th>
+                  <th data-stats-sort="ncs_record">NCS</th>
+                  <th data-stats-sort="usssa_record">USSSA</th>
+                  <th data-stats-sort="perfect_game_record">Perfect Game</th>
+                  <th data-stats-sort="cumulative_record">Cumulative</th>
+                  <th data-stats-sort="win_pct">Win%</th>
+                  <th data-stats-sort="total_games">Games</th>
+                </tr>
+              </thead>
+              <tbody id="teamStatsRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </details>
     </section>
   </main>
 

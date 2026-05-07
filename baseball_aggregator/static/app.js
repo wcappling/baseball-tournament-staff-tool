@@ -721,6 +721,96 @@ if (tableWrap) {
   queueTournamentTableScrollHintUpdate();
 }
 
+// ── Team Stats ──────────────────────────────────────────────────────────────
+
+const teamStatsSection = document.querySelector("#teamStatsSection");
+const teamStatsCount = document.querySelector("#teamStatsCount");
+const teamStatsNote = document.querySelector("#teamStatsNote");
+const teamStatsRowsEl = document.querySelector("#teamStatsRows");
+
+let teamStatsData = [];
+let teamStatsSortKey = "win_pct";
+let teamStatsSortDir = -1;
+
+function formatWinPct(value) {
+  if (value === null || value === undefined || isNaN(value)) return "—";
+  return value.toFixed(3).replace(/^0/, "");
+}
+
+function sortTeamStats(items) {
+  return [...items].sort((a, b) => {
+    const av = a[teamStatsSortKey] ?? "";
+    const bv = b[teamStatsSortKey] ?? "";
+    if (av < bv) return -1 * teamStatsSortDir;
+    if (av > bv) return 1 * teamStatsSortDir;
+    return 0;
+  });
+}
+
+function renderTeamStatsRows(teams) {
+  if (!teamStatsRowsEl) return;
+  teamStatsRowsEl.innerHTML = "";
+  for (const team of sortTeamStats(teams)) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(team.team_name)}</td>
+      <td>${escapeHtml(team.city_state || "")}</td>
+      <td class="record-cell">${escapeHtml(team.ncs_record || "—")}</td>
+      <td class="record-cell">${escapeHtml(team.usssa_record || "—")}</td>
+      <td class="record-cell">${escapeHtml(team.perfect_game_record || "—")}</td>
+      <td class="record-cell record-cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
+      <td class="win-pct">${formatWinPct(team.win_pct)}</td>
+      <td class="win-pct">${team.total_games}</td>
+    `;
+    teamStatsRowsEl.appendChild(tr);
+  }
+}
+
+async function loadTeamStats() {
+  if (!teamStatsRowsEl) return;
+  const age = ageFilter ? ageFilter.value : "";
+  const params = age ? `?age=${encodeURIComponent(age)}` : "";
+  try {
+    const data = await api(`/api/team-stats${params}`);
+    teamStatsData = data.teams || [];
+    if (teamStatsCount) {
+      teamStatsCount.textContent = teamStatsData.length ? `(${teamStatsData.length} teams)` : "";
+    }
+    if (teamStatsNote) teamStatsNote.textContent = data.note || "";
+    renderTeamStatsRows(teamStatsData);
+  } catch {
+    if (teamStatsRowsEl) {
+      teamStatsRowsEl.innerHTML = '<tr><td colspan="8" class="subtle">Could not load team stats.</td></tr>';
+    }
+  }
+}
+
+if (teamStatsSection) {
+  teamStatsSection.addEventListener("toggle", () => {
+    if (teamStatsSection.open && teamStatsData.length === 0) {
+      loadTeamStats();
+    }
+  });
+}
+
+document.querySelectorAll("th[data-stats-sort]").forEach((th) => {
+  th.addEventListener("click", () => {
+    const next = th.dataset.statsSort;
+    teamStatsSortDir = teamStatsSortKey === next ? teamStatsSortDir * -1 : -1;
+    teamStatsSortKey = next;
+    renderTeamStatsRows(teamStatsData);
+  });
+});
+
+// Reload team stats when age filter changes (if section is open)
+if (ageFilter && teamStatsSection) {
+  ageFilter.addEventListener("change", () => {
+    if (teamStatsSection.open) loadTeamStats();
+  });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
 initTheme();
 setDefaultDateFilters();
 loadSettings().then(loadDivisions).then(loadTournaments).then(loadChanges);
