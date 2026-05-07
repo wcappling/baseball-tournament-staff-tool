@@ -593,14 +593,14 @@ function teamThemeTokens(settings, mode) {
   const secondary = normalizeHex(settings.brand_secondary, "#115e59");
   const accent = normalizeHex(settings.brand_accent, secondary);
   const darkMode = mode === "dark";
-  const pageBase = darkMode ? "#07101b" : "#eef3f8";
-  const surfaceBase = darkMode ? "#111d2b" : "#ffffff";
-  const panelBase = darkMode ? "#162638" : "#edf2f7";
-  const inputBase = darkMode ? "#0b1624" : "#ffffff";
+  const pageBase = darkMode ? "#080808" : "#eef3f8";
+  const surfaceBase = darkMode ? "#131313" : "#ffffff";
+  const panelBase = darkMode ? "#191919" : "#edf2f7";
+  const inputBase = darkMode ? "#0c0c0c" : "#ffffff";
   const inkBase = darkMode ? "#f3f7fc" : "#142133";
   const mutedBase = darkMode ? "#a9b9cb" : "#56687b";
   const linkBase = darkMode ? "#75d8ff" : "#0f4fd8";
-  const lineBase = darkMode ? "#2b3d52" : "#cdd8e5";
+  const lineBase = darkMode ? "#2a2a2a" : "#cdd8e5";
   const brandOnPrimary = contrastRatio(primary, "#ffffff") >= 4.5 ? "#ffffff" : "#07101b";
 
   return {
@@ -615,16 +615,16 @@ function teamThemeTokens(settings, mode) {
     "--surface": mixHex(primary, surfaceBase, darkMode ? 0.78 : 0.96),
     "--panel": mixHex(primary, panelBase, darkMode ? 0.70 : 0.90),
     "--input-bg": mixHex(primary, inputBase, darkMode ? 0.86 : 0.98),
-    "--detail": mixHex(primary, darkMode ? "#0e1928" : "#f6f9fc", darkMode ? 0.82 : 0.96),
+    "--detail": mixHex(primary, darkMode ? "#0d0d0d" : "#f6f9fc", darkMode ? 0.82 : 0.96),
     "--line": mixHex(secondary, lineBase, darkMode ? 0.72 : 0.82),
-    "--pill": mixHex(primary, darkMode ? "#293c52" : "#dce6ef", darkMode ? 0.74 : 0.86),
+    "--pill": mixHex(primary, darkMode ? "#222222" : "#dce6ef", darkMode ? 0.74 : 0.86),
     "--ink": inkBase,
     "--muted": mutedBase,
     "--th-ink": darkMode ? "#dce8f5" : "#273648",
     "--link": mixHex(secondary, linkBase, darkMode ? 0.30 : 0.62),
     "--link-hover": mixHex(accent, linkBase, darkMode ? 0.20 : 0.50),
     "--sidebar-bg": darkMode
-      ? mixHex(primary, "#030a12", 0.88)
+      ? mixHex(primary, "#030303", 0.88)
       : mixHex(secondary, "#000000", 0.1),
   };
 }
