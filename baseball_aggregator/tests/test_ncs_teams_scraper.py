@@ -216,7 +216,7 @@ def test_aggregate_includes_ncs_team_records():
     assert "Alpha 8U" in names
 
     alpha = next(r for r in results if r["team_name"] == "Alpha 8U")
-    assert alpha["ncs_record"] == "5-2"
+    assert alpha["ncs_record"] == "5-2-0"
     assert "ncs" in alpha["sources_seen"]
 
 
@@ -270,7 +270,7 @@ def test_aggregate_merges_ncs_records_with_tournament_data():
     alpha = next((r for r in results if r["team_name"] == "Alpha 8U"), None)
     assert alpha is not None
     # 3-1 from tournament + 2-1 from direct scrape = 5-2 under ncs
-    assert alpha["ncs_record"] == "5-2"
+    assert alpha["ncs_record"] == "5-2-0"
     assert alpha["total_games"] == 7
 
 

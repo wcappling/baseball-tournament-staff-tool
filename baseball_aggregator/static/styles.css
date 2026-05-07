@@ -1249,6 +1249,12 @@ textarea {
   align-self: flex-end;
 }
 
+.inline-filter-btn--primary {
+  background: var(--brand-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
 /* ── Team stats table: checkbox column ────────────────────────────────────── */
 
 .team-stats-table .col-select {

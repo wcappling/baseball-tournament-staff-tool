@@ -30,9 +30,7 @@ def _is_aggregate_key(division: str) -> bool:
 
 
 def _format_record(wins: int, losses: int, ties: int) -> str:
-    if ties:
-        return f"{wins}-{losses}-{ties}"
-    return f"{wins}-{losses}"
+    return f"{wins}-{losses}-{ties}"
 
 
 def aggregate_team_records(conn: sqlite3.Connection, age_division: str) -> list[dict[str, Any]]:

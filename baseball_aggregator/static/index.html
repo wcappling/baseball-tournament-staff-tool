@@ -15,7 +15,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     }());
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20260507-redesign-v1">
+  <link rel="stylesheet" href="/static/styles.css?v=20260507-redesign-v2">
 </head>
 <body>
 
@@ -369,12 +369,14 @@
           </label>
           <label class="inline-filter-label">Min games played
             <select id="statsMinGames" class="inline-filter-select">
+              <option value="0">All</option>
               <option value="1">1+</option>
               <option value="3">3+</option>
               <option value="5">5+</option>
               <option value="10">10+</option>
             </select>
           </label>
+          <button id="statsApplyFilter" type="button" class="inline-filter-btn inline-filter-btn--primary">Apply</button>
           <button id="statsClearSelection" type="button" class="inline-filter-btn">Clear selection</button>
         </div>
         <div class="table-wrap" id="teamStatsTableWrap">
@@ -408,6 +410,6 @@
     </main>
   </div>
 
-  <script src="/static/app.js?v=20260507-redesign-v1"></script>
+  <script src="/static/app.js?v=20260507-redesign-v2"></script>
 </body>
 </html>
