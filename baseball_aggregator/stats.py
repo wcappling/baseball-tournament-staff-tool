@@ -38,6 +38,10 @@ def _format_record(wins: int, losses: int, ties: int) -> str:
 def aggregate_team_records(conn: sqlite3.Connection, age_division: str) -> list[dict[str, Any]]:
     """Aggregate W-L-T records for all teams from hydrated tournament data.
 
+    Also merges records scraped directly from the NCS Teams listing page
+    (stored in ``ncs_team_records``) so that teams whose records exist on NCS
+    but whose tournament entries haven't been hydrated yet are still visible.
+
     Groups teams by normalized name, accumulates wins/losses/ties per source,
     and returns a list sorted by win% descending (then total games descending).
     """

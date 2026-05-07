@@ -854,6 +854,11 @@ textarea {
   pointer-events: none;
 }
 
+/* nav-item inside nav-section resets top margin */
+.nav-section > .nav-item {
+  margin-top: 2px;
+}
+
 .nav-subitem {
   display: flex;
   align-items: center;
@@ -1212,4 +1217,139 @@ textarea {
   .table-wrap > table > tbody > tr:not(.team-details-row) > td::before {
     display: block;
   }
+}
+
+/* ── Inline filters (team stats / team analysis) ──────────────────────────── */
+
+.inline-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 0 16px 12px;
+}
+
+.inline-filter-label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inline-filter-input {
+  min-width: 200px;
+}
+
+.inline-filter-select {
+  min-width: 80px;
+}
+
+.inline-filter-btn {
+  align-self: flex-end;
+}
+
+/* ── Team stats table: checkbox column ────────────────────────────────────── */
+
+.team-stats-table .col-select {
+  width: 32px;
+  padding: 6px 4px;
+  cursor: default;
+}
+
+.team-stats-table input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.team-row-selected td {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+/* ── Team stats table: mobile layout ─────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Override generic table card layout for team-stats-table:
+     it sits inside its own .table-wrap but needs horizontal scroll, not cards */
+  .team-stats-table {
+    min-width: 500px;
+  }
+
+  /* Hide source-specific columns on mobile for cleaner view */
+  .team-stats-table .col-ncs,
+  .team-stats-table .col-usssa,
+  .team-stats-table .col-pg {
+    display: none;
+  }
+
+  /* Prevent the generic tournament card layout from applying to team stats rows */
+  #teamStatsTable tbody tr,
+  #teamAnalysisTable tbody tr {
+    display: table-row;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  #teamStatsTable tbody tr td,
+  #teamAnalysisTable tbody tr td {
+    display: table-cell;
+    grid-template-columns: unset;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  #teamStatsTable tbody tr td::before,
+  #teamAnalysisTable tbody tr td::before {
+    content: none !important;
+  }
+}
+
+/* ── Recent changes banner ────────────────────────────────────────────────── */
+
+.recent-changes-banner {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, #f59e0b 12%, var(--surface));
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+}
+
+.recent-changes-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 10px;
+  color: #92400e;
+}
+
+:root[data-theme="dark"] .recent-changes-title {
+  color: #fde68a;
+}
+
+:root[data-theme="dark"] .recent-changes-banner {
+  background: color-mix(in srgb, #f59e0b 10%, var(--surface));
+  border-color: #b45309;
+}
+
+.recent-changes-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.recent-changes-list li {
+  font-size: 13px;
+}
+
+/* ── Changes section wrapper ──────────────────────────────────────────────── */
+
+.changes {
+  padding: 0 4px;
 }

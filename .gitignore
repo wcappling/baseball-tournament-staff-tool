@@ -16,3 +16,4 @@ baseball_aggregator/mnt/
 *.sqlite3-*
 backups/
 pytest-cache-files-*/
+.claude/
