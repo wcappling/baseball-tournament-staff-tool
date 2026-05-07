@@ -940,6 +940,20 @@ textarea {
   text-overflow: ellipsis;
 }
 
+.appearance-chip--clickable {
+  cursor: pointer;
+}
+
+.appearance-chip--clickable:hover {
+  background: var(--brand-primary);
+  color: #fff;
+}
+
+.appearance-chip--active {
+  background: var(--brand-primary);
+  color: #fff;
+  font-weight: 600;
+}
 
 .team-stats-note {
   margin-bottom: 10px;
@@ -998,18 +1012,6 @@ textarea {
   max-width: 320px;
   white-space: normal;
   line-height: 1.5;
-}
-
-.appearance-chip {
-  display: block;
-  background: var(--pill);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 12px;
-  margin: 2px 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ── Responsive: tablet (hide sidebar by default, keep hamburger) ─────────── */
