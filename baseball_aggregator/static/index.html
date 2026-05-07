@@ -107,7 +107,12 @@
       <button id="applyFilters" title="Apply filters">Apply</button>
     </section>
 
-    <section>
+    <div class="view-tabs" role="tablist">
+      <button class="view-tab active" id="tournamentsTabBtn" role="tab" aria-selected="true" aria-controls="tournamentsView">Tournaments</button>
+      <button class="view-tab" id="teamsTabBtn" role="tab" aria-selected="false" aria-controls="teamsView">Teams</button>
+    </div>
+
+    <section id="tournamentsView">
       <div class="table-wrap">
         <table>
           <thead>
@@ -160,7 +165,7 @@
 
       <details class="team-stats-section" id="teamStatsSection">
         <summary>
-          Team Stats
+          All Team Stats
           <span id="teamStatsCount" class="subtle"></span>
         </summary>
         <div class="team-stats-body">
@@ -184,6 +189,33 @@
           </div>
         </div>
       </details>
+    </section>
+
+    <section id="teamsView" hidden>
+      <div class="team-analysis-header">
+        <p id="teamAnalysisNote" class="team-stats-note subtle"></p>
+        <p id="teamAnalysisEmpty" class="subtle" hidden>
+          No teams found. Mark tournaments as <strong>Interested</strong> or <strong>Registered</strong> and load their team lists to see data here.
+        </p>
+      </div>
+      <div class="table-wrap">
+        <table class="team-stats-table" id="teamAnalysisTable">
+          <thead>
+            <tr>
+              <th data-analysis-sort="team_name">Team</th>
+              <th data-analysis-sort="city_state">City/State</th>
+              <th data-analysis-sort="ncs_record">NCS</th>
+              <th data-analysis-sort="usssa_record">USSSA</th>
+              <th data-analysis-sort="perfect_game_record">Perfect Game</th>
+              <th data-analysis-sort="cumulative_record">Cumulative</th>
+              <th data-analysis-sort="win_pct">Win%</th>
+              <th data-analysis-sort="total_games">Games</th>
+              <th data-analysis-sort="tournament_count">Tournaments</th>
+            </tr>
+          </thead>
+          <tbody id="teamAnalysisRows"></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
