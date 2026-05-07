@@ -86,12 +86,10 @@ def aggregate_team_records(conn: sqlite3.Connection, age_division: str) -> list[
                     continue
 
                 wins, losses, ties = parsed
-                src = team_map[key]["sources"].setdefault(
-                    source, {"wins": 0, "losses": 0, "ties": 0}
-                )
-                src["wins"] += wins
-                src["losses"] += losses
-                src["ties"] += ties
+                total = wins + losses + ties
+                existing = team_map[key]["sources"].get(source)
+                if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
+                    team_map[key]["sources"][source] = {"wins": wins, "losses": losses, "ties": ties}
 
     # Merge records scraped directly from the NCS Teams listing page.
     # These are stored separately in ncs_team_records and use source="ncs".
@@ -258,12 +256,10 @@ def team_analysis_records(
                     continue
 
                 wins, losses, ties = parsed
-                src = team_map[key]["sources"].setdefault(
-                    source, {"wins": 0, "losses": 0, "ties": 0}
-                )
-                src["wins"] += wins
-                src["losses"] += losses
-                src["ties"] += ties
+                total = wins + losses + ties
+                existing = team_map[key]["sources"].get(source)
+                if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
+                    team_map[key]["sources"][source] = {"wins": wins, "losses": losses, "ties": ties}
 
     results: list[dict[str, Any]] = []
     for data in team_map.values():

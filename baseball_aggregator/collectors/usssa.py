@@ -201,8 +201,8 @@ def parse_seeding_report_teams(payload: Any, division: str) -> list[dict[str, An
             for value in [clean_text(team.get("TeamState") or ""), clean_text(team.get("teamcity") or "")]
             if value
         )
-        in_class_record = format_record(team.get("Wins"), team.get("Loses"))
-        overall_record = format_record(team.get("OverallWins"), team.get("OverallLoses"))
+        in_class_record = format_record(team.get("Wins"), team.get("Loses"), team.get("Ties"))
+        overall_record = format_record(team.get("OverallWins"), team.get("OverallLoses"), team.get("OverallTies"))
         parsed.append(
             {
                 "number": index,
@@ -415,7 +415,10 @@ def parse_int(value: Any) -> int | None:
     return int(match.group(0)) if match else None
 
 
-def format_record(wins: Any, losses: Any) -> str:
+def format_record(wins: Any, losses: Any, ties: Any = None) -> str:
     if wins is None and losses is None:
         return ""
-    return f"{parse_int(wins) or 0}-{parse_int(losses) or 0}"
+    w = parse_int(wins) or 0
+    l = parse_int(losses) or 0
+    t = parse_int(ties) or 0
+    return f"{w}-{l}-{t}"
