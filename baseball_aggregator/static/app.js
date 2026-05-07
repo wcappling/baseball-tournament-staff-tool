@@ -522,8 +522,9 @@ function applyTheme(theme) {
   const normalized = theme === "dark" ? "dark" : "light";
   document.documentElement.setAttribute("data-theme", normalized);
   document.body.dataset.theme = normalized;
-  themeToggle.textContent = normalized === "dark" ? "Light mode" : "Dark mode";
-  themeToggle.setAttribute("aria-label", `Switch to ${normalized === "dark" ? "light" : "dark"} mode`);
+  const nextTheme = normalized === "dark" ? "light" : "dark";
+  themeToggle.setAttribute("aria-label", `Switch to ${nextTheme} mode`);
+  themeToggle.setAttribute("title", `Switch to ${nextTheme} mode`);
   localStorage.setItem(THEME_KEY, normalized);
   if (currentTeamSettings) {
     applyTeamBrand(currentTeamSettings);
@@ -594,6 +595,9 @@ function teamThemeTokens(settings, mode) {
     "--th-ink": darkMode ? "#dce8f5" : "#273648",
     "--link": mixHex(secondary, linkBase, darkMode ? 0.30 : 0.62),
     "--link-hover": mixHex(accent, linkBase, darkMode ? 0.20 : 0.50),
+    "--sidebar-bg": darkMode
+      ? mixHex(primary, "#030a12", 0.88)
+      : mixHex(secondary, "#000000", 0.1),
   };
 }
 
@@ -696,7 +700,15 @@ document.querySelector("#applyFilters").addEventListener("click", loadTournament
 sourceFilter.addEventListener("change", loadDivisions);
 ageFilter.addEventListener("change", loadDivisions);
 divisionMenuButton.addEventListener("click", toggleDivisionMenu);
-document.addEventListener("click", closeDivisionMenu);
+document.addEventListener("click", (event) => {
+  closeDivisionMenu(event);
+  // Close mobile nav on outside click (mobileNav ref wired below)
+  const nav = document.querySelector("#mobileNav");
+  const toggle = document.querySelector("#sidebarToggle");
+  if (nav && !nav.hidden && !nav.contains(event.target) && toggle && !toggle.contains(event.target)) {
+    nav.hidden = true;
+  }
+});
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     divisionOptions.hidden = true;
@@ -839,12 +851,54 @@ if (ageFilter && teamStatsSection) {
   });
 }
 
-// ── View Tabs (Tournaments / Teams) ─────────────────────────────────────────
+// ── Sidebar & Navigation ─────────────────────────────────────────────────────
+
+const sidebar = document.querySelector("#sidebar");
+const sidebarToggleBtn = document.querySelector("#sidebarToggle");
+const mobileNav = document.querySelector("#mobileNav");
+
+const SIDEBAR_KEY = "staff_tool_sidebar";
+
+function isMobileLayout() {
+  return window.innerWidth < 768;
+}
+
+let sidebarOpen = localStorage.getItem(SIDEBAR_KEY) !== "closed" && !isMobileLayout();
+
+function applySidebarState() {
+  if (sidebar) sidebar.classList.toggle("closed", !sidebarOpen);
+}
+
+applySidebarState();
+
+if (sidebarToggleBtn) {
+  sidebarToggleBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (isMobileLayout()) {
+      if (mobileNav) mobileNav.hidden = !mobileNav.hidden;
+    } else {
+      sidebarOpen = !sidebarOpen;
+      localStorage.setItem(SIDEBAR_KEY, sidebarOpen ? "open" : "closed");
+      applySidebarState();
+    }
+  });
+}
+
+// Close mobile nav when window grows past mobile breakpoint
+window.addEventListener("resize", () => {
+  if (!isMobileLayout() && mobileNav && !mobileNav.hidden) {
+    mobileNav.hidden = true;
+  }
+});
+
+// ── View switching ───────────────────────────────────────────────────────────
 
 const tournamentsView = document.querySelector("#tournamentsView");
 const teamsView = document.querySelector("#teamsView");
-const tournamentsTabBtn = document.querySelector("#tournamentsTabBtn");
-const teamsTabBtn = document.querySelector("#teamsTabBtn");
+const sidebarTournamentsBtn = document.querySelector("#sidebarTournamentsBtn");
+const sidebarTeamsBtn = document.querySelector("#sidebarTeamsBtn");
+const mobileTournamentsBtn = document.querySelector("#mobileTournamentsBtn");
+const mobileTeamsBtn = document.querySelector("#mobileTeamsBtn");
 
 let activeView = "tournaments";
 let teamAnalysisLoaded = false;
@@ -854,21 +908,27 @@ function switchView(view) {
   const showTournaments = view === "tournaments";
   if (tournamentsView) tournamentsView.hidden = !showTournaments;
   if (teamsView) teamsView.hidden = showTournaments;
-  if (tournamentsTabBtn) {
-    tournamentsTabBtn.classList.toggle("active", showTournaments);
-    tournamentsTabBtn.setAttribute("aria-selected", String(showTournaments));
-  }
-  if (teamsTabBtn) {
-    teamsTabBtn.classList.toggle("active", !showTournaments);
-    teamsTabBtn.setAttribute("aria-selected", String(!showTournaments));
-  }
+  [sidebarTournamentsBtn, mobileTournamentsBtn].forEach((btn) => {
+    if (btn) btn.classList.toggle("active", showTournaments);
+  });
+  [sidebarTeamsBtn, mobileTeamsBtn].forEach((btn) => {
+    if (btn) btn.classList.toggle("active", !showTournaments);
+  });
   if (view === "teams" && !teamAnalysisLoaded) {
     loadTeamAnalysis();
   }
 }
 
-if (tournamentsTabBtn) tournamentsTabBtn.addEventListener("click", () => switchView("tournaments"));
-if (teamsTabBtn) teamsTabBtn.addEventListener("click", () => switchView("teams"));
+if (sidebarTournamentsBtn) sidebarTournamentsBtn.addEventListener("click", () => switchView("tournaments"));
+if (sidebarTeamsBtn) sidebarTeamsBtn.addEventListener("click", () => switchView("teams"));
+if (mobileTournamentsBtn) mobileTournamentsBtn.addEventListener("click", () => {
+  switchView("tournaments");
+  if (mobileNav) mobileNav.hidden = true;
+});
+if (mobileTeamsBtn) mobileTeamsBtn.addEventListener("click", () => {
+  switchView("teams");
+  if (mobileNav) mobileNav.hidden = true;
+});
 
 // ── Team Analysis Page ───────────────────────────────────────────────────────
 
