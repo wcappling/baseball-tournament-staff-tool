@@ -154,6 +154,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     _migrate_shortlist_table(conn)
     _seed_known_team_theme_defaults(conn)
     _backfill_missing_distances(conn)
+    _ensure_ncs_team_records_table(conn)
     conn.commit()
 
 
@@ -775,6 +776,12 @@ def _verify_password(password: str, stored: str) -> bool:
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _ensure_ncs_team_records_table(conn: sqlite3.Connection) -> None:
+    """Create ncs_team_records table if it doesn't exist (idempotent)."""
+    from baseball_aggregator.scrapers.ncs_teams import init_ncs_team_records_table
+    init_ncs_team_records_table(conn)
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:

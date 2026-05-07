@@ -713,6 +713,36 @@ async function loadChanges() {
   changesLoaded = true;
   const changes = await api("/api/changes");
   changesEl.innerHTML = changes.length ? "" : '<p class="subtle">No changes recorded yet.</p>';
+
+  // Recent changes summary banner (last 6 hours)
+  const recentBanner = document.querySelector("#recentChangesBanner");
+  if (recentBanner) {
+    const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
+    const recentChanges = changes.filter((change) => {
+      if (!change.detected_at) return false;
+      const ts = new Date(change.detected_at).getTime();
+      return !isNaN(ts) && ts >= sixHoursAgo;
+    });
+    if (recentChanges.length > 0) {
+      recentBanner.hidden = false;
+      recentBanner.innerHTML = `
+        <div class="recent-changes-banner">
+          <div class="recent-changes-title">Recent changes (last 6 hours)</div>
+          <ul class="recent-changes-list">
+            ${recentChanges.map((change) => `
+              <li>
+                <strong>${escapeHtml(change.tournament_name || change.source_id)}</strong>
+                <span class="subtle">— ${escapeHtml(change.field)}: ${escapeHtml(change.old_value || "new")} → ${escapeHtml(change.new_value || "")}</span>
+              </li>
+            `).join("")}
+          </ul>
+        </div>
+      `;
+    } else {
+      recentBanner.hidden = true;
+    }
+  }
+
   for (const change of changes) {
     const div = document.createElement("div");
     div.className = "change";
@@ -756,6 +786,7 @@ document.querySelector("#refreshBtn").addEventListener("click", async () => {
     await loadDivisions();
     await Promise.all([loadTournaments(), loadTeamStatsMap()]);
     // Reload whichever view is currently open
+    if (activeView === "upcoming")       renderUpcomingView();
     if (activeView === "teams-analysis") { teamAnalysisLoaded = false; await loadTeamAnalysis(); }
     if (activeView === "teams-stats")    { teamStatsData = []; await loadTeamStats(); }
     if (activeView === "changelog")      { changesLoaded = false; await loadChanges(); }
@@ -792,10 +823,14 @@ if (tableWrap) {
 const teamStatsCount = document.querySelector("#teamStatsCount");
 const teamStatsNote = document.querySelector("#teamStatsNote");
 const teamStatsRowsEl = document.querySelector("#teamStatsRows");
+const statsTeamSearchEl = document.querySelector("#statsTeamSearch");
+const statsMinGamesEl = document.querySelector("#statsMinGames");
+const statsClearSelectionEl = document.querySelector("#statsClearSelection");
 
 let teamStatsData = [];
 let teamStatsSortKey = "win_pct";
 let teamStatsSortDir = -1;
+let statsSelectedTeams = new Set();
 
 function formatWinPct(value) {
   if (value === null || value === undefined || isNaN(value)) return "—";
@@ -812,23 +847,50 @@ function sortTeamStats(items) {
   });
 }
 
+function getStatsFiltered(teams) {
+  const search = statsTeamSearchEl ? statsTeamSearchEl.value.trim().toLowerCase() : "";
+  const minGames = statsMinGamesEl ? Number(statsMinGamesEl.value) || 1 : 1;
+  return teams.filter((team) => {
+    if (team.total_games < minGames) return false;
+    if (search && !team.team_name.toLowerCase().includes(search)) return false;
+    return true;
+  });
+}
+
 function renderTeamStatsRows(teams) {
   if (!teamStatsRowsEl) return;
   teamStatsRowsEl.innerHTML = "";
-  for (const team of sortTeamStats(teams)) {
+  const filtered = getStatsFiltered(teams);
+  const sorted = sortTeamStats(filtered);
+  // Float selected teams to top
+  const selected = sorted.filter((t) => statsSelectedTeams.has(t.team_name));
+  const unselected = sorted.filter((t) => !statsSelectedTeams.has(t.team_name));
+  const display = [...selected, ...unselected];
+  for (const team of display) {
+    const isSelected = statsSelectedTeams.has(team.team_name);
     const tr = document.createElement("tr");
+    if (isSelected) tr.classList.add("team-row-selected");
     tr.innerHTML = `
-      <td>${escapeHtml(team.team_name)}</td>
-      <td>${escapeHtml(team.city_state || "")}</td>
-      <td class="record-cell">${escapeHtml(team.ncs_record || "—")}</td>
-      <td class="record-cell">${escapeHtml(team.usssa_record || "—")}</td>
-      <td class="record-cell">${escapeHtml(team.perfect_game_record || "—")}</td>
-      <td class="record-cell record-cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
-      <td class="win-pct">${formatWinPct(team.win_pct)}</td>
-      <td class="win-pct">${team.total_games}</td>
+      <td class="col-select" data-label="Select"><input type="checkbox" class="team-select-cb" data-name="${escapeHtml(team.team_name)}" ${isSelected ? "checked" : ""}></td>
+      <td data-label="Team">${escapeHtml(team.team_name)}</td>
+      <td data-label="City/State">${escapeHtml(team.city_state || "")}</td>
+      <td class="col-ncs record-cell" data-label="NCS">${escapeHtml(team.ncs_record || "—")}</td>
+      <td class="col-usssa record-cell" data-label="USSSA">${escapeHtml(team.usssa_record || "—")}</td>
+      <td class="col-pg record-cell" data-label="Perfect Game">${escapeHtml(team.perfect_game_record || "—")}</td>
+      <td class="record-cell record-cumulative" data-label="Cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
+      <td class="win-pct" data-label="Win%">${formatWinPct(team.win_pct)}</td>
+      <td class="win-pct" data-label="Games">${team.total_games}</td>
     `;
     teamStatsRowsEl.appendChild(tr);
   }
+  // Bind checkbox events
+  teamStatsRowsEl.querySelectorAll(".team-select-cb").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) statsSelectedTeams.add(cb.dataset.name);
+      else statsSelectedTeams.delete(cb.dataset.name);
+      renderTeamStatsRows(teamStatsData);
+    });
+  });
 }
 
 async function loadTeamStats() {
@@ -845,7 +907,7 @@ async function loadTeamStats() {
     renderTeamStatsRows(teamStatsData);
   } catch {
     if (teamStatsRowsEl) {
-      teamStatsRowsEl.innerHTML = '<tr><td colspan="8" class="subtle">Could not load team stats.</td></tr>';
+      teamStatsRowsEl.innerHTML = '<tr><td colspan="9" class="subtle">Could not load team stats.</td></tr>';
     }
   }
 }
@@ -857,6 +919,13 @@ document.querySelectorAll("th[data-stats-sort]").forEach((th) => {
     teamStatsSortKey = next;
     renderTeamStatsRows(teamStatsData);
   });
+});
+
+if (statsTeamSearchEl) statsTeamSearchEl.addEventListener("input", () => renderTeamStatsRows(teamStatsData));
+if (statsMinGamesEl) statsMinGamesEl.addEventListener("change", () => renderTeamStatsRows(teamStatsData));
+if (statsClearSelectionEl) statsClearSelectionEl.addEventListener("click", () => {
+  statsSelectedTeams.clear();
+  renderTeamStatsRows(teamStatsData);
 });
 
 // ── Sidebar toggle (hamburger) ───────────────────────────────────────────────
@@ -901,15 +970,20 @@ window.addEventListener("resize", () => {
 // ── View switching ───────────────────────────────────────────────────────────
 
 const tournamentsView      = document.querySelector("#tournamentsView");
+const upcomingView         = document.querySelector("#upcomingView");
 const teamsAnalysisView    = document.querySelector("#teamsAnalysisView");
 const teamsStatsView       = document.querySelector("#teamsStatsView");
 const changelogView        = document.querySelector("#changelogView");
+const toolbarEl            = document.querySelector(".toolbar");
 
 const sidebarTournamentsBtn    = document.querySelector("#sidebarTournamentsBtn");
+const sidebarUpcomingBtn       = document.querySelector("#sidebarUpcomingBtn");
+const sidebarTeamsBtn          = document.querySelector("#sidebarTeamsBtn");
 const sidebarTeamsAnalysisBtn  = document.querySelector("#sidebarTeamsAnalysisBtn");
 const sidebarTeamsStatsBtn     = document.querySelector("#sidebarTeamsStatsBtn");
 const sidebarChangelogBtn      = document.querySelector("#sidebarChangelogBtn");
 const mobileTournamentsBtn     = document.querySelector("#mobileTournamentsBtn");
+const mobileUpcomingBtn        = document.querySelector("#mobileUpcomingBtn");
 const mobileTeamsBtn           = document.querySelector("#mobileTeamsBtn");
 const mobileTeamsStatsBtn      = document.querySelector("#mobileTeamsStatsBtn");
 const mobileChangelogBtn       = document.querySelector("#mobileChangelogBtn");
@@ -920,6 +994,7 @@ let changesLoaded = false;
 
 const ALL_VIEWS = {
   "tournaments":    tournamentsView,
+  "upcoming":       upcomingView,
   "teams-analysis": teamsAnalysisView,
   "teams-stats":    teamsStatsView,
   "changelog":      changelogView,
@@ -927,10 +1002,36 @@ const ALL_VIEWS = {
 
 const ALL_NAV_BTNS = {
   "tournaments":    [sidebarTournamentsBtn, mobileTournamentsBtn],
-  "teams-analysis": [sidebarTeamsAnalysisBtn, mobileTeamsBtn],
+  "upcoming":       [sidebarUpcomingBtn, mobileUpcomingBtn],
+  "teams-analysis": [sidebarTeamsAnalysisBtn, sidebarTeamsBtn, mobileTeamsBtn],
   "teams-stats":    [sidebarTeamsStatsBtn, mobileTeamsStatsBtn],
   "changelog":      [sidebarChangelogBtn, mobileChangelogBtn],
 };
+
+const upcomingRowsEl = document.querySelector("#upcomingRows");
+
+function renderUpcomingView() {
+  if (!upcomingRowsEl) return;
+  upcomingRowsEl.innerHTML = "";
+  const interested = tournaments
+    .filter((t) => t.shortlist_status === "Interested" || t.shortlist_status === "Registered")
+    .slice()
+    .sort((a, b) => {
+      const ad = a.start_date || "";
+      const bd = b.start_date || "";
+      if (ad < bd) return -1;
+      if (ad > bd) return 1;
+      return 0;
+    });
+  if (!interested.length) {
+    upcomingRowsEl.innerHTML = '<tr><td colspan="11" class="subtle" style="text-align:center;padding:24px;">No upcoming tournaments. Mark tournaments as Interested or Registered to see them here.</td></tr>';
+    return;
+  }
+  for (const item of interested) {
+    renderTournamentRow(item, upcomingRowsEl);
+  }
+  bindRowEvents();
+}
 
 function switchView(view) {
   activeView = view;
@@ -942,6 +1043,9 @@ function switchView(view) {
       if (btn) btn.classList.toggle("active", key === view);
     }
   }
+  // Show toolbar only on tournaments view
+  if (toolbarEl) toolbarEl.hidden = view !== "tournaments";
+  if (view === "upcoming")       renderUpcomingView();
   if (view === "teams-analysis" && !teamAnalysisLoaded) loadTeamAnalysis();
   if (view === "teams-stats"    && teamStatsData.length === 0) loadTeamStats();
   if (view === "changelog"      && !changesLoaded) loadChanges();
@@ -949,10 +1053,13 @@ function switchView(view) {
 }
 
 if (sidebarTournamentsBtn)   sidebarTournamentsBtn.addEventListener("click",   () => switchView("tournaments"));
+if (sidebarUpcomingBtn)      sidebarUpcomingBtn.addEventListener("click",      () => switchView("upcoming"));
+if (sidebarTeamsBtn)         sidebarTeamsBtn.addEventListener("click",         () => switchView("teams-analysis"));
 if (sidebarTeamsAnalysisBtn) sidebarTeamsAnalysisBtn.addEventListener("click", () => switchView("teams-analysis"));
 if (sidebarTeamsStatsBtn)    sidebarTeamsStatsBtn.addEventListener("click",    () => switchView("teams-stats"));
 if (sidebarChangelogBtn)     sidebarChangelogBtn.addEventListener("click",     () => switchView("changelog"));
 if (mobileTournamentsBtn)    mobileTournamentsBtn.addEventListener("click",    () => switchView("tournaments"));
+if (mobileUpcomingBtn)       mobileUpcomingBtn.addEventListener("click",       () => switchView("upcoming"));
 if (mobileTeamsBtn)          mobileTeamsBtn.addEventListener("click",          () => switchView("teams-analysis"));
 if (mobileTeamsStatsBtn)     mobileTeamsStatsBtn.addEventListener("click",     () => switchView("teams-stats"));
 if (mobileChangelogBtn)      mobileChangelogBtn.addEventListener("click",      () => switchView("changelog"));
@@ -963,10 +1070,14 @@ if (mobileChangelogBtn)      mobileChangelogBtn.addEventListener("click",      (
 const teamAnalysisRowsEl = document.querySelector("#teamAnalysisRows");
 const teamAnalysisNote = document.querySelector("#teamAnalysisNote");
 const teamAnalysisEmpty = document.querySelector("#teamAnalysisEmpty");
+const analysisTeamSearchEl = document.querySelector("#analysisTeamSearch");
+const analysisMinGamesEl = document.querySelector("#analysisMinGames");
+const analysisClearSelectionEl = document.querySelector("#analysisClearSelection");
 
 let teamAnalysisData = [];
 let teamAnalysisSortKey = "win_pct";
 let teamAnalysisSortDir = -1;
+let analysisSelectedTeams = new Set();
 
 function sortTeamAnalysis(items) {
   return [...items].sort((a, b) => {
@@ -978,17 +1089,35 @@ function sortTeamAnalysis(items) {
   });
 }
 
+function getAnalysisFiltered(teams) {
+  const search = analysisTeamSearchEl ? analysisTeamSearchEl.value.trim().toLowerCase() : "";
+  const minGames = analysisMinGamesEl ? Number(analysisMinGamesEl.value) || 1 : 1;
+  return teams.filter((team) => {
+    if (team.total_games < minGames) return false;
+    if (search && !team.team_name.toLowerCase().includes(search)) return false;
+    return true;
+  });
+}
+
 function renderTeamAnalysisRows(teams) {
   if (!teamAnalysisRowsEl) return;
   teamAnalysisRowsEl.innerHTML = "";
 
-  if (!teams.length) {
+  const filtered = getAnalysisFiltered(teams);
+
+  if (!filtered.length) {
     if (teamAnalysisEmpty) teamAnalysisEmpty.hidden = false;
     return;
   }
   if (teamAnalysisEmpty) teamAnalysisEmpty.hidden = true;
 
-  for (const team of sortTeamAnalysis(teams)) {
+  const sorted = sortTeamAnalysis(filtered);
+  const selected = sorted.filter((t) => analysisSelectedTeams.has(t.team_name));
+  const unselected = sorted.filter((t) => !analysisSelectedTeams.has(t.team_name));
+  const display = [...selected, ...unselected];
+
+  for (const team of display) {
+    const isSelected = analysisSelectedTeams.has(team.team_name);
     const appearanceNames = (team.appearances || [])
       .map((a) => {
         const date = a.start_date ? ` (${a.start_date})` : "";
@@ -998,19 +1127,29 @@ function renderTeamAnalysisRows(teams) {
       .join(" ");
 
     const tr = document.createElement("tr");
+    if (isSelected) tr.classList.add("team-row-selected");
     tr.innerHTML = `
-      <td>${escapeHtml(team.team_name)}</td>
-      <td>${escapeHtml(team.city_state || "")}</td>
-      <td class="record-cell">${escapeHtml(team.ncs_record || "—")}</td>
-      <td class="record-cell">${escapeHtml(team.usssa_record || "—")}</td>
-      <td class="record-cell">${escapeHtml(team.perfect_game_record || "—")}</td>
-      <td class="record-cell record-cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
-      <td class="win-pct">${formatWinPct(team.win_pct)}</td>
-      <td class="win-pct">${team.total_games}</td>
-      <td class="appearance-list">${appearanceNames || '<span class="subtle">—</span>'}</td>
+      <td class="col-select" data-label="Select"><input type="checkbox" class="team-select-cb" data-name="${escapeHtml(team.team_name)}" ${isSelected ? "checked" : ""}></td>
+      <td data-label="Team">${escapeHtml(team.team_name)}</td>
+      <td data-label="City/State">${escapeHtml(team.city_state || "")}</td>
+      <td class="col-ncs record-cell" data-label="NCS">${escapeHtml(team.ncs_record || "—")}</td>
+      <td class="col-usssa record-cell" data-label="USSSA">${escapeHtml(team.usssa_record || "—")}</td>
+      <td class="col-pg record-cell" data-label="Perfect Game">${escapeHtml(team.perfect_game_record || "—")}</td>
+      <td class="record-cell record-cumulative" data-label="Cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
+      <td class="win-pct" data-label="Win%">${formatWinPct(team.win_pct)}</td>
+      <td class="win-pct" data-label="Games">${team.total_games}</td>
+      <td class="appearance-list" data-label="Tournaments">${appearanceNames || '<span class="subtle">—</span>'}</td>
     `;
     teamAnalysisRowsEl.appendChild(tr);
   }
+  // Bind checkbox events
+  teamAnalysisRowsEl.querySelectorAll(".team-select-cb").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) analysisSelectedTeams.add(cb.dataset.name);
+      else analysisSelectedTeams.delete(cb.dataset.name);
+      renderTeamAnalysisRows(teamAnalysisData);
+    });
+  });
 }
 
 async function loadTeamAnalysis() {
@@ -1025,7 +1164,7 @@ async function loadTeamAnalysis() {
     renderTeamAnalysisRows(teamAnalysisData);
   } catch {
     if (teamAnalysisRowsEl) {
-      teamAnalysisRowsEl.innerHTML = '<tr><td colspan="9" class="subtle">Could not load team analysis.</td></tr>';
+      teamAnalysisRowsEl.innerHTML = '<tr><td colspan="10" class="subtle">Could not load team analysis.</td></tr>';
     }
   }
 }
@@ -1037,6 +1176,13 @@ document.querySelectorAll("th[data-analysis-sort]").forEach((th) => {
     teamAnalysisSortKey = next;
     renderTeamAnalysisRows(teamAnalysisData);
   });
+});
+
+if (analysisTeamSearchEl) analysisTeamSearchEl.addEventListener("input", () => renderTeamAnalysisRows(teamAnalysisData));
+if (analysisMinGamesEl) analysisMinGamesEl.addEventListener("change", () => renderTeamAnalysisRows(teamAnalysisData));
+if (analysisClearSelectionEl) analysisClearSelectionEl.addEventListener("click", () => {
+  analysisSelectedTeams.clear();
+  renderTeamAnalysisRows(teamAnalysisData);
 });
 
 // Reload data when age filter changes based on active view

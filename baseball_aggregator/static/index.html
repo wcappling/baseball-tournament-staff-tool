@@ -39,9 +39,22 @@
         <span>Tournaments</span>
       </button>
 
+      <!-- Upcoming subitem under Tournaments -->
+      <button class="nav-subitem" id="sidebarUpcomingBtn" type="button">
+        <span>Upcoming</span>
+      </button>
+
       <!-- Teams group -->
       <div class="nav-section">
-        <span class="nav-section-label">Teams</span>
+        <button class="nav-item" id="sidebarTeamsBtn" type="button">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>Teams</span>
+        </button>
         <button class="nav-subitem" id="sidebarTeamsAnalysisBtn" type="button">
           <span>Interested / Registered</span>
         </button>
@@ -84,6 +97,15 @@
                 <line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
               Tournaments
+            </button>
+            <button class="mobile-nav-item" id="mobileUpcomingBtn" type="button" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              Upcoming
             </button>
             <button class="mobile-nav-item" id="mobileTeamsBtn" type="button" role="menuitem">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -263,6 +285,34 @@
         </details>
       </section>
 
+      <!-- ── Upcoming (Interested/Registered) Tournaments view ──────────── -->
+      <section id="upcomingView" hidden>
+        <div class="section-header">
+          <h2 class="section-title">Upcoming Tournaments</h2>
+          <p class="subtle">Tournaments marked Interested or Registered, sorted by date.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Teams</th>
+                <th>Date</th>
+                <th>Tournament</th>
+                <th class="col-source">Source</th>
+                <th>Location</th>
+                <th class="col-distance">Distance</th>
+                <th>Teams Registered</th>
+                <th>Teams Confirmed</th>
+                <th>Age</th>
+                <th>Status</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="upcomingRows"></tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- ── Interested / Registered Teams view ────────────────────────── -->
       <section id="teamsAnalysisView" hidden>
         <div class="section-header">
@@ -272,15 +322,30 @@
             No teams found. Mark tournaments as <strong>Interested</strong> or <strong>Registered</strong> and load their team lists to see data here.
           </p>
         </div>
+        <div class="inline-filters">
+          <label class="inline-filter-label">Search teams
+            <input id="analysisTeamSearch" type="text" placeholder="Filter by team name…" class="inline-filter-input">
+          </label>
+          <label class="inline-filter-label">Min games played
+            <select id="analysisMinGames" class="inline-filter-select">
+              <option value="1">1+</option>
+              <option value="3">3+</option>
+              <option value="5">5+</option>
+              <option value="10">10+</option>
+            </select>
+          </label>
+          <button id="analysisClearSelection" type="button" class="inline-filter-btn">Clear selection</button>
+        </div>
         <div class="table-wrap">
           <table class="team-stats-table" id="teamAnalysisTable">
             <thead>
               <tr>
+                <th class="col-select"></th>
                 <th data-analysis-sort="team_name">Team</th>
                 <th data-analysis-sort="city_state">City/State</th>
-                <th data-analysis-sort="ncs_record">NCS</th>
-                <th data-analysis-sort="usssa_record">USSSA</th>
-                <th data-analysis-sort="perfect_game_record">Perfect Game</th>
+                <th class="col-ncs" data-analysis-sort="ncs_record">NCS</th>
+                <th class="col-usssa" data-analysis-sort="usssa_record">USSSA</th>
+                <th class="col-pg" data-analysis-sort="perfect_game_record">Perfect Game</th>
                 <th data-analysis-sort="cumulative_record">Cumulative</th>
                 <th data-analysis-sort="win_pct">Win%</th>
                 <th data-analysis-sort="total_games">Games</th>
@@ -298,15 +363,30 @@
           <h2 class="section-title">All Team Stats <span id="teamStatsCount" class="subtle"></span></h2>
           <p id="teamStatsNote" class="subtle"></p>
         </div>
+        <div class="inline-filters">
+          <label class="inline-filter-label">Search teams
+            <input id="statsTeamSearch" type="text" placeholder="Filter by team name…" class="inline-filter-input">
+          </label>
+          <label class="inline-filter-label">Min games played
+            <select id="statsMinGames" class="inline-filter-select">
+              <option value="1">1+</option>
+              <option value="3">3+</option>
+              <option value="5">5+</option>
+              <option value="10">10+</option>
+            </select>
+          </label>
+          <button id="statsClearSelection" type="button" class="inline-filter-btn">Clear selection</button>
+        </div>
         <div class="table-wrap" id="teamStatsTableWrap">
           <table class="team-stats-table" id="teamStatsTable">
             <thead>
               <tr>
+                <th class="col-select"></th>
                 <th data-stats-sort="team_name">Team</th>
                 <th data-stats-sort="city_state">City/State</th>
-                <th data-stats-sort="ncs_record">NCS</th>
-                <th data-stats-sort="usssa_record">USSSA</th>
-                <th data-stats-sort="perfect_game_record">Perfect Game</th>
+                <th class="col-ncs" data-stats-sort="ncs_record">NCS</th>
+                <th class="col-usssa" data-stats-sort="usssa_record">USSSA</th>
+                <th class="col-pg" data-stats-sort="perfect_game_record">Perfect Game</th>
                 <th data-stats-sort="cumulative_record">Cumulative</th>
                 <th data-stats-sort="win_pct">Win%</th>
                 <th data-stats-sort="total_games">Games</th>
@@ -322,6 +402,7 @@
         <div class="section-header">
           <h2 class="section-title">Change Log</h2>
         </div>
+        <div id="recentChangesBanner" hidden></div>
         <div id="changes" class="changes"></div>
       </section>
     </main>
