@@ -825,6 +825,7 @@ const teamStatsNote = document.querySelector("#teamStatsNote");
 const teamStatsRowsEl = document.querySelector("#teamStatsRows");
 const statsTeamSearchEl = document.querySelector("#statsTeamSearch");
 const statsMinGamesEl = document.querySelector("#statsMinGames");
+const statsApplyFilterEl = document.querySelector("#statsApplyFilter");
 const statsClearSelectionEl = document.querySelector("#statsClearSelection");
 
 let teamStatsData = [];
@@ -849,7 +850,7 @@ function sortTeamStats(items) {
 
 function getStatsFiltered(teams) {
   const search = statsTeamSearchEl ? statsTeamSearchEl.value.trim().toLowerCase() : "";
-  const minGames = statsMinGamesEl ? Number(statsMinGamesEl.value) || 1 : 1;
+  const minGames = statsMinGamesEl ? Number(statsMinGamesEl.value) || 0 : 0;
   return teams.filter((team) => {
     if (team.total_games < minGames) return false;
     if (search && !team.team_name.toLowerCase().includes(search)) return false;
@@ -922,7 +923,7 @@ document.querySelectorAll("th[data-stats-sort]").forEach((th) => {
 });
 
 if (statsTeamSearchEl) statsTeamSearchEl.addEventListener("input", () => renderTeamStatsRows(teamStatsData));
-if (statsMinGamesEl) statsMinGamesEl.addEventListener("change", () => renderTeamStatsRows(teamStatsData));
+if (statsApplyFilterEl) statsApplyFilterEl.addEventListener("click", () => renderTeamStatsRows(teamStatsData));
 if (statsClearSelectionEl) statsClearSelectionEl.addEventListener("click", () => {
   statsSelectedTeams.clear();
   renderTeamStatsRows(teamStatsData);
