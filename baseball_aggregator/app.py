@@ -411,6 +411,15 @@ def api_team_stats(age: str | None = None, request: Request = None):
     }
 
 
+@app.get("/api/team-analysis")
+def api_team_analysis(age: str | None = None, request: Request = None):
+    with connect() as conn:
+        settings = get_settings(conn)
+        age_division = (age or settings["target_age_division"]).upper()
+        team_id = _web_team_id(request) if request else ""
+        return stats.team_analysis_records(conn, age_division, team_id=team_id)
+
+
 @app.put("/api/tournaments/{tournament_id}/shortlist")
 def api_shortlist(tournament_id: int, payload: dict[str, Any], request: Request):
     with connect() as conn:

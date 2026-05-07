@@ -593,6 +593,62 @@ textarea {
   border-bottom: 0;
 }
 
+/* ── View Tabs ─────────────────────────────────────────────────────────────── */
+
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 14px 0;
+  border-bottom: 2px solid var(--line);
+}
+
+.view-tab {
+  padding: 8px 18px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--muted);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.view-tab:hover {
+  color: var(--ink);
+}
+
+.view-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Team Analysis Page ────────────────────────────────────────────────────── */
+
+#teamsView {
+  padding: 14px;
+}
+
+.team-analysis-header {
+  margin-bottom: 12px;
+}
+
+.appearance-list {
+  max-width: 320px;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.appearance-chip {
+  display: inline-block;
+  background: var(--pill);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  margin: 2px 2px 2px 0;
+}
+
 /* ── Team Stats ────────────────────────────────────────────────────────────── */
 
 .team-stats-section {

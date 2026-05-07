@@ -26,6 +26,10 @@ const THEME_KEY = "staff_tool_theme";
 let scrollHintRaf = null;
 let currentTeamSettings = null;
 
+// Global lookup map: normalized team name -> stats object (cumulative record etc.)
+// Populated from /api/team-stats on page load and after each refresh.
+let teamStatsMap = new Map();
+
 function updateTournamentTableScrollHint() {
   if (!tableWrap) return;
   const maxScrollLeft = tableWrap.scrollWidth - tableWrap.clientWidth;
@@ -129,20 +133,25 @@ function renderTeamRows(item) {
                   <th>Confirmed</th>
                   <th>City/State</th>
                   <th>W-L-T</th>
+                  <th>Cumulative</th>
                   <th>Class</th>
                 </tr>
               </thead>
               <tbody>
-                ${teamsByDivision[division].map((team, index) => `
+                ${teamsByDivision[division].map((team, index) => {
+                  const statsEntry = teamStatsMap.get((team.team_name || "").trim().toLowerCase());
+                  const cumulative = statsEntry ? escapeHtml(statsEntry.cumulative_record) : '<span class="subtle">—</span>';
+                  return `
                   <tr>
                     <td>${escapeHtml(team.number || index + 1)}</td>
                     <td>${team.detail_url ? `<a href="${escapeHtml(team.detail_url)}" target="_blank" rel="noreferrer">${escapeHtml(team.team_name)}</a>` : escapeHtml(team.team_name)}</td>
                     <td>${team.confirmed ? '<span class="confirmed">Yes</span>' : '<span class="subtle">No</span>'}</td>
                     <td>${escapeHtml(team.city_state)}</td>
                     <td>${escapeHtml(team.record)}</td>
+                    <td class="record-cumulative">${cumulative}</td>
                     <td>${escapeHtml(team.team_class || "")}</td>
                   </tr>
-                `).join("")}
+                `}).join("")}
               </tbody>
             </table>
           </section>
@@ -655,6 +664,19 @@ async function loadTournaments() {
   renderRows();
 }
 
+async function loadTeamStatsMap() {
+  const age = ageFilter ? ageFilter.value : "";
+  const params = age ? `?age=${encodeURIComponent(age)}` : "";
+  try {
+    const data = await api(`/api/team-stats${params}`);
+    teamStatsMap = new Map(
+      (data.teams || []).map((t) => [t.team_name.trim().toLowerCase(), t])
+    );
+  } catch {
+    // non-fatal: cumulative column just shows —
+  }
+}
+
 async function loadChanges() {
   const changes = await api("/api/changes");
   changesEl.innerHTML = changes.length ? "" : '<p class="subtle">No changes recorded yet.</p>';
@@ -691,8 +713,16 @@ document.querySelector("#refreshBtn").addEventListener("click", async () => {
   try {
     await api("/api/refresh", { method: "POST", body: JSON.stringify({}) });
     await loadDivisions();
-    await loadTournaments();
+    await Promise.all([loadTournaments(), loadTeamStatsMap()]);
     await loadChanges();
+    // Reload team analysis if Teams tab is open
+    if (activeView === "teams") {
+      teamAnalysisLoaded = false;
+      await loadTeamAnalysis();
+    }
+    // Reset Team Stats collapsible so it reloads next time it's opened
+    teamStatsData = [];
+    if (teamStatsCount) teamStatsCount.textContent = "";
   } finally {
     document.querySelector("#refreshBtn").textContent = "Refresh";
   }
@@ -809,8 +839,133 @@ if (ageFilter && teamStatsSection) {
   });
 }
 
+// ── View Tabs (Tournaments / Teams) ─────────────────────────────────────────
+
+const tournamentsView = document.querySelector("#tournamentsView");
+const teamsView = document.querySelector("#teamsView");
+const tournamentsTabBtn = document.querySelector("#tournamentsTabBtn");
+const teamsTabBtn = document.querySelector("#teamsTabBtn");
+
+let activeView = "tournaments";
+let teamAnalysisLoaded = false;
+
+function switchView(view) {
+  activeView = view;
+  const showTournaments = view === "tournaments";
+  if (tournamentsView) tournamentsView.hidden = !showTournaments;
+  if (teamsView) teamsView.hidden = showTournaments;
+  if (tournamentsTabBtn) {
+    tournamentsTabBtn.classList.toggle("active", showTournaments);
+    tournamentsTabBtn.setAttribute("aria-selected", String(showTournaments));
+  }
+  if (teamsTabBtn) {
+    teamsTabBtn.classList.toggle("active", !showTournaments);
+    teamsTabBtn.setAttribute("aria-selected", String(!showTournaments));
+  }
+  if (view === "teams" && !teamAnalysisLoaded) {
+    loadTeamAnalysis();
+  }
+}
+
+if (tournamentsTabBtn) tournamentsTabBtn.addEventListener("click", () => switchView("tournaments"));
+if (teamsTabBtn) teamsTabBtn.addEventListener("click", () => switchView("teams"));
+
+// ── Team Analysis Page ───────────────────────────────────────────────────────
+
+const teamAnalysisRowsEl = document.querySelector("#teamAnalysisRows");
+const teamAnalysisNote = document.querySelector("#teamAnalysisNote");
+const teamAnalysisEmpty = document.querySelector("#teamAnalysisEmpty");
+
+let teamAnalysisData = [];
+let teamAnalysisSortKey = "win_pct";
+let teamAnalysisSortDir = -1;
+
+function sortTeamAnalysis(items) {
+  return [...items].sort((a, b) => {
+    const av = a[teamAnalysisSortKey] ?? "";
+    const bv = b[teamAnalysisSortKey] ?? "";
+    if (av < bv) return -1 * teamAnalysisSortDir;
+    if (av > bv) return 1 * teamAnalysisSortDir;
+    return 0;
+  });
+}
+
+function renderTeamAnalysisRows(teams) {
+  if (!teamAnalysisRowsEl) return;
+  teamAnalysisRowsEl.innerHTML = "";
+
+  if (!teams.length) {
+    if (teamAnalysisEmpty) teamAnalysisEmpty.hidden = false;
+    return;
+  }
+  if (teamAnalysisEmpty) teamAnalysisEmpty.hidden = true;
+
+  for (const team of sortTeamAnalysis(teams)) {
+    const appearanceNames = (team.appearances || [])
+      .map((a) => {
+        const date = a.start_date ? ` (${a.start_date})` : "";
+        const rec = a.record ? ` ${escapeHtml(a.record)}` : "";
+        return `<span class="appearance-chip">${escapeHtml(a.name)}${date}${rec}</span>`;
+      })
+      .join(" ");
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(team.team_name)}</td>
+      <td>${escapeHtml(team.city_state || "")}</td>
+      <td class="record-cell">${escapeHtml(team.ncs_record || "—")}</td>
+      <td class="record-cell">${escapeHtml(team.usssa_record || "—")}</td>
+      <td class="record-cell">${escapeHtml(team.perfect_game_record || "—")}</td>
+      <td class="record-cell record-cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
+      <td class="win-pct">${formatWinPct(team.win_pct)}</td>
+      <td class="win-pct">${team.total_games}</td>
+      <td class="appearance-list">${appearanceNames || '<span class="subtle">—</span>'}</td>
+    `;
+    teamAnalysisRowsEl.appendChild(tr);
+  }
+}
+
+async function loadTeamAnalysis() {
+  if (!teamAnalysisRowsEl) return;
+  const age = ageFilter ? ageFilter.value : "";
+  const params = age ? `?age=${encodeURIComponent(age)}` : "";
+  try {
+    const data = await api(`/api/team-analysis${params}`);
+    teamAnalysisData = data.teams || [];
+    teamAnalysisLoaded = true;
+    if (teamAnalysisNote) teamAnalysisNote.textContent = data.note || "";
+    renderTeamAnalysisRows(teamAnalysisData);
+  } catch {
+    if (teamAnalysisRowsEl) {
+      teamAnalysisRowsEl.innerHTML = '<tr><td colspan="9" class="subtle">Could not load team analysis.</td></tr>';
+    }
+  }
+}
+
+document.querySelectorAll("th[data-analysis-sort]").forEach((th) => {
+  th.addEventListener("click", () => {
+    const next = th.dataset.analysisSort;
+    teamAnalysisSortDir = teamAnalysisSortKey === next ? teamAnalysisSortDir * -1 : -1;
+    teamAnalysisSortKey = next;
+    renderTeamAnalysisRows(teamAnalysisData);
+  });
+});
+
+// Reload team analysis when age filter changes (if Teams tab is active)
+if (ageFilter) {
+  ageFilter.addEventListener("change", () => {
+    if (activeView === "teams") {
+      teamAnalysisLoaded = false;
+      loadTeamAnalysis();
+    }
+  });
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 initTheme();
 setDefaultDateFilters();
-loadSettings().then(loadDivisions).then(loadTournaments).then(loadChanges);
+loadSettings()
+  .then(loadDivisions)
+  .then(() => Promise.all([loadTournaments(), loadTeamStatsMap()]))
+  .then(loadChanges);
