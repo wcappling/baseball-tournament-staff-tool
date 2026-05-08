@@ -16,6 +16,7 @@
   --brand-accent: #0ea5a2;
   --brand-on-primary: #ffffff;
   --warn: #b45309;
+  --danger: #dc2626;
   --good: #15803d;
   --surface: #ffffff;
   --page: #e8edf3;
@@ -49,6 +50,7 @@
   --brand-accent: #22d3ee;
   --brand-on-primary: #07101b;
   --warn: #fbbf24;
+  --danger: #f87171;
   --good: #4ade80;
   --surface: #131313;
   --page: #080808;
@@ -247,7 +249,7 @@ details[open] .setup-summary::after { content: " ▾"; }
   color: var(--ink);
 }
 
-.settings-card h2.danger { color: var(--warn); }
+.settings-card h2.danger { color: var(--danger); }
 
 .settings-row {
   display: grid;
@@ -272,7 +274,7 @@ details[open] .setup-summary::after { content: " ▾"; }
 }
 .settings-msg.visible { display: block; }
 .settings-msg.success { background: rgba(22, 163, 74, .15); color: #16a34a; }
-.settings-msg.error   { background: rgba(220, 38, 38, .12); color: var(--warn); }
+.settings-msg.error   { background: rgba(220, 38, 38, .12); color: var(--danger); }
 
 .danger-confirm { display: grid; gap: 8px; }
 
