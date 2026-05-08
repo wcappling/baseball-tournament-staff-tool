@@ -202,7 +202,10 @@ def parse_seeding_report_teams(payload: Any, division: str) -> list[dict[str, An
             if value
         )
         in_class_record = format_record(team.get("Wins"), team.get("Loses"), team.get("Ties"))
-        overall_record = format_record(team.get("OverallWins"), team.get("OverallLoses"), team.get("OverallTies"))
+        overall_ties = parse_int(team.get("OverallTies"))
+        if overall_ties is None:
+            overall_ties = parse_int(team.get("Ties")) or 0
+        overall_record = format_record(team.get("OverallWins"), team.get("OverallLoses"), overall_ties)
         parsed.append(
             {
                 "number": index,
