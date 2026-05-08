@@ -14,6 +14,8 @@ const endDateFilter = document.querySelector("#endDateFilter");
 const profileEl = document.querySelector("#profile");
 const themeToggle = document.querySelector("#themeToggle");
 const logoutBtn = document.querySelector("#logoutBtn");
+const menuBtn = document.querySelector("#menuBtn");
+const navMenu = document.querySelector("#navMenu");
 const tableWrap = document.querySelector(".table-wrap");
 
 let tournaments = [];
@@ -490,6 +492,18 @@ function closeDivisionMenu(event) {
   divisionMenuButton.setAttribute("aria-expanded", "false");
 }
 
+function toggleNavMenu() {
+  const nextOpen = navMenu.hidden;
+  navMenu.hidden = !nextOpen;
+  menuBtn.setAttribute("aria-expanded", String(nextOpen));
+}
+
+function closeNavMenu(event) {
+  if (navMenu.hidden || navMenu.contains(event.target) || menuBtn.contains(event.target)) return;
+  navMenu.hidden = true;
+  menuBtn.setAttribute("aria-expanded", "false");
+}
+
 function applyTheme(theme) {
   const normalized = theme === "dark" ? "dark" : "light";
   document.documentElement.setAttribute("data-theme", normalized);
@@ -547,12 +561,16 @@ sourceFilter.addEventListener("change", loadDivisions);
 ageFilter.addEventListener("change", loadDivisions);
 divisionMenuButton.addEventListener("click", toggleDivisionMenu);
 document.addEventListener("click", closeDivisionMenu);
+document.addEventListener("click", closeNavMenu);
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     divisionOptions.hidden = true;
     divisionMenuButton.setAttribute("aria-expanded", "false");
+    navMenu.hidden = true;
+    menuBtn.setAttribute("aria-expanded", "false");
   }
 });
+menuBtn.addEventListener("click", toggleNavMenu);
 themeToggle.addEventListener("click", toggleTheme);
 logoutBtn.addEventListener("click", async () => {
   await fetch("/logout", { method: "POST" });
