@@ -584,16 +584,27 @@ main {
 /* ── Filter toolbar ──────────────────────────────────────────────────────── */
 
 .toolbar {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(110px, 1fr)) auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  align-items: end;
+  align-items: flex-end;
   margin-bottom: 14px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 12px;
   box-shadow: var(--shadow);
+}
+
+.toolbar > label,
+.toolbar > .filter-field {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.toolbar > button#applyFilters {
+  flex: 0 0 auto;
+  align-self: flex-end;
 }
 
 .toolbar[hidden] {
@@ -1180,17 +1191,12 @@ textarea {
 /* ── Responsive: tablet (hide sidebar by default, keep hamburger) ─────────── */
 
 @media (max-width: 900px) {
-  .toolbar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
-  }
-
-  .toolbar > * {
-    min-width: 0;
+  .toolbar > label,
+  .toolbar > .filter-field {
+    flex: 1 1 calc(50% - 10px);
   }
 
   #applyFilters {
-    grid-column: 1 / -1;
     width: 100%;
   }
 
@@ -1286,12 +1292,12 @@ textarea {
     padding: 10px 10px 16px;
   }
 
-  .toolbar {
-    grid-template-columns: 1fr;
+  .toolbar > label,
+  .toolbar > .filter-field {
+    flex: 1 1 100%;
   }
 
   #applyFilters {
-    grid-column: 1 / -1;
     width: 100%;
   }
 
