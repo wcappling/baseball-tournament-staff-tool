@@ -19,6 +19,7 @@ from baseball_aggregator.collectors.usssa import parse_division_results as parse
 from baseball_aggregator.collectors.usssa import parse_event_list as parse_usssa
 from baseball_aggregator.collectors.usssa import parse_seeding_report_teams as parse_usssa_teams
 from baseball_aggregator.collectors.usssa import enrich_with_seeding_reports as usssa_enrich
+from baseball_aggregator.collectors.usssa import parse_usssa_age_division
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -369,3 +370,80 @@ def test_usssa_enrich_populates_division_teams():
         mock_fetch.assert_called_once_with(client, "div-001", "12U OPEN")
 
     assert tournament.division_teams["12U OPEN"] == fake_teams
+
+
+# ---------------------------------------------------------------------------
+# parse_usssa_age_division tests
+# ---------------------------------------------------------------------------
+
+def test_parse_usssa_age_division_8u_class_a():
+    name = "(2026) Easley Baseball Club Schmitt 8U (8 & Under A) | Madison, Alabama"
+    assert parse_usssa_age_division(name) == "8 & Under A"
+
+
+def test_parse_usssa_age_division_10u():
+    name = "(2026) Some Team 10U (10 & Under) | Huntsville, AL"
+    assert parse_usssa_age_division(name) == "10 & Under"
+
+
+def test_parse_usssa_age_division_12u_style():
+    name = "(2026) Hawks Baseball (12U) | Madison, AL"
+    assert parse_usssa_age_division(name) == "12U"
+
+
+def test_parse_usssa_age_division_no_match():
+    assert parse_usssa_age_division("Team Name Without Age") == ""
+
+
+def test_parse_usssa_age_division_empty():
+    assert parse_usssa_age_division("") == ""
+
+
+# ---------------------------------------------------------------------------
+# USSSA ties fallback test
+# ---------------------------------------------------------------------------
+
+def test_usssa_ties_fallback_when_overall_ties_null():
+    """When OverallTies is null/missing, fall back to in-class Ties field."""
+    payload = {
+        "seedingReport": {
+            "tournaments": [
+                {
+                    "teamname": "Test Team",
+                    "OverallWins": 7,
+                    "OverallLoses": 5,
+                    "OverallTies": None,  # null from API
+                    "Wins": 3,
+                    "Loses": 2,
+                    "Ties": 1,           # in-class fallback
+                    "teamid": "123",
+                }
+            ]
+        }
+    }
+    teams = parse_usssa_teams(payload, "8U OPEN")
+    assert len(teams) == 1
+    assert teams[0]["overall_record"] == "7-5-1"
+
+
+def test_usssa_ties_fallback_when_overall_ties_present():
+    """When OverallTies is present (non-null), use it directly."""
+    payload = {
+        "seedingReport": {
+            "tournaments": [
+                {
+                    "teamname": "Test Team",
+                    "OverallWins": 7,
+                    "OverallLoses": 5,
+                    "OverallTies": 2,
+                    "Wins": 3,
+                    "Loses": 2,
+                    "Ties": 1,
+                    "teamid": "456",
+                }
+            ]
+        }
+    }
+    teams = parse_usssa_teams(payload, "8U OPEN")
+    assert len(teams) == 1
+    assert teams[0]["overall_record"] == "7-5-2"

@@ -211,7 +211,7 @@ def test_aggregate_includes_ncs_team_records():
     ]
     upsert_ncs_team_records(conn, teams, "8U", "AL", DEFAULT_SEASON_ID)
 
-    results = aggregate_team_records(conn, "8U")
+    results = aggregate_team_records(conn, "default", "8U")
     names = [r["team_name"] for r in results]
     assert "Alpha 8U" in names
 
@@ -266,7 +266,7 @@ def test_aggregate_merges_ncs_records_with_tournament_data():
         DEFAULT_SEASON_ID,
     )
 
-    results = aggregate_team_records(conn, "8U")
+    results = aggregate_team_records(conn, "default", "8U")
     alpha = next((r for r in results if r["team_name"] == "Alpha 8U"), None)
     assert alpha is not None
     # 3-1 from tournament + 2-1 from direct scrape = 5-2 under ncs

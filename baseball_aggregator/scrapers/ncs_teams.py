@@ -286,14 +286,38 @@ def scrape_ncs_teams(
     age_division: str,
     season_id: int = DEFAULT_SEASON_ID,
     client: httpx.Client | None = None,
+    team_id: str | None = None,
 ) -> dict[str, Any]:
     """Scrape NCS teams for a state + age division and upsert into the DB.
 
     Returns a summary dict with ``teams_found`` and ``teams_upserted``.
+    If ``team_id`` is provided, results are also written to the unified
+    ``team_records`` table.
     """
+    from baseball_aggregator.stats import current_season_year
+    from baseball_aggregator.storage import upsert_team_records
+
     html = fetch_teams_html(state, age_division, season_id=season_id, client=client)
     teams = parse_teams_page(html, age_division, state)
     upserted = upsert_ncs_team_records(conn, teams, age_division, state, season_id)
+
+    if team_id and teams:
+        season = current_season_year()
+        unified_records = [
+            {
+                "source":       "ncs",
+                "team_name":    t["team_name"],
+                "age_division": age_division.strip().upper(),
+                "season":       season,
+                "wins":         _parse_record_wins(t.get("record") or ""),
+                "losses":       _parse_record_losses(t.get("record") or ""),
+                "ties":         _parse_record_ties(t.get("record") or ""),
+                "detail_url":   "",
+            }
+            for t in teams
+        ]
+        upsert_team_records(conn, team_id, unified_records)
+
     return {
         "state": state.upper(),
         "age_division": age_division.strip().upper(),
@@ -301,3 +325,21 @@ def scrape_ncs_teams(
         "teams_found": len(teams),
         "teams_upserted": upserted,
     }
+
+
+def _parse_record_wins(record: str) -> int:
+    import re
+    m = re.match(r"(\d+)-", record)
+    return int(m.group(1)) if m else 0
+
+
+def _parse_record_losses(record: str) -> int:
+    import re
+    m = re.match(r"\d+-(\d+)", record)
+    return int(m.group(1)) if m else 0
+
+
+def _parse_record_ties(record: str) -> int:
+    import re
+    m = re.match(r"\d+-\d+-(\d+)", record)
+    return int(m.group(1)) if m else 0

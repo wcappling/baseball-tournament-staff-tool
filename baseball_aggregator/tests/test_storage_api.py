@@ -1,10 +1,20 @@
 import sqlite3
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from baseball_aggregator.app import app
 from baseball_aggregator.models import Tournament
-from baseball_aggregator.storage import init_db, list_divisions, search_tournaments, upsert_tournaments
+from baseball_aggregator.stats import current_season_year
+from baseball_aggregator.storage import (
+    get_available_seasons,
+    get_team_records,
+    init_db,
+    list_divisions,
+    search_tournaments,
+    upsert_team_records,
+    upsert_tournaments,
+)
 
 
 def test_storage_threshold_and_change_detection():
@@ -310,3 +320,124 @@ def test_init_db_backfills_known_missing_distances():
 
         assert row["distance_miles"] is not None
         assert rows[0]["name"] == "Marietta Event"
+
+
+# ---------------------------------------------------------------------------
+# team_records storage tests
+# ---------------------------------------------------------------------------
+
+def _in_memory_conn() -> sqlite3.Connection:
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    init_db(conn)
+    return conn
+
+
+def test_upsert_team_records_inserts_rows():
+    conn = _in_memory_conn()
+    records = [
+        {"source": "ncs", "team_name": "Alpha 8U", "age_division": "8U", "season": "2026",
+         "wins": 5, "losses": 2, "ties": 0, "detail_url": ""},
+        {"source": "usssa", "team_name": "Alpha 8U", "age_division": "8 & Under A", "season": "2026",
+         "wins": 3, "losses": 1, "ties": 0, "detail_url": ""},
+    ]
+    count = upsert_team_records(conn, "default", records)
+    assert count == 2
+    rows = get_team_records(conn, "default")
+    assert len(rows) == 2
+
+
+def test_upsert_team_records_updates_on_conflict():
+    conn = _in_memory_conn()
+    upsert_team_records(conn, "default", [
+        {"source": "ncs", "team_name": "Alpha 8U", "age_division": "8U", "season": "2026",
+         "wins": 5, "losses": 2, "ties": 0, "detail_url": ""},
+    ])
+    upsert_team_records(conn, "default", [
+        {"source": "ncs", "team_name": "Alpha 8U", "age_division": "8U", "season": "2026",
+         "wins": 7, "losses": 3, "ties": 1, "detail_url": ""},
+    ])
+    rows = get_team_records(conn, "default")
+    assert len(rows) == 1
+    assert rows[0]["wins"] == 7
+    assert rows[0]["ties"] == 1
+
+
+def test_get_team_records_season_filter():
+    conn = _in_memory_conn()
+    upsert_team_records(conn, "default", [
+        {"source": "ncs", "team_name": "Alpha", "age_division": "8U", "season": "2025",
+         "wins": 4, "losses": 2, "ties": 0, "detail_url": ""},
+        {"source": "ncs", "team_name": "Alpha", "age_division": "8U", "season": "2026",
+         "wins": 6, "losses": 1, "ties": 0, "detail_url": ""},
+    ])
+    rows_2025 = get_team_records(conn, "default", season="2025")
+    rows_2026 = get_team_records(conn, "default", season="2026")
+    assert len(rows_2025) == 1
+    assert rows_2025[0]["wins"] == 4
+    assert len(rows_2026) == 1
+    assert rows_2026[0]["wins"] == 6
+
+
+def test_get_team_records_age_division_filter():
+    conn = _in_memory_conn()
+    upsert_team_records(conn, "default", [
+        {"source": "ncs", "team_name": "Eight U Team", "age_division": "8U", "season": "2026",
+         "wins": 3, "losses": 1, "ties": 0, "detail_url": ""},
+        {"source": "ncs", "team_name": "Twelve U Team", "age_division": "12U", "season": "2026",
+         "wins": 2, "losses": 2, "ties": 0, "detail_url": ""},
+    ])
+    rows = get_team_records(conn, "default", age_division="8U")
+    assert len(rows) == 1
+    assert rows[0]["team_name"] == "Eight U Team"
+
+
+def test_get_available_seasons_sorted_desc():
+    conn = _in_memory_conn()
+    upsert_team_records(conn, "default", [
+        {"source": "ncs", "team_name": "Team A", "age_division": "8U", "season": "2024",
+         "wins": 1, "losses": 0, "ties": 0, "detail_url": ""},
+        {"source": "ncs", "team_name": "Team A", "age_division": "8U", "season": "2026",
+         "wins": 3, "losses": 1, "ties": 0, "detail_url": ""},
+        {"source": "ncs", "team_name": "Team A", "age_division": "8U", "season": "2025",
+         "wins": 2, "losses": 1, "ties": 0, "detail_url": ""},
+    ])
+    seasons = get_available_seasons(conn, "default")
+    assert seasons == ["2026", "2025", "2024"]
+
+
+def test_get_available_seasons_empty_when_no_records():
+    conn = _in_memory_conn()
+    assert get_available_seasons(conn, "default") == []
+
+
+# ---------------------------------------------------------------------------
+# current_season_year tests
+# ---------------------------------------------------------------------------
+
+def test_current_season_year_january_returns_current_year():
+    from datetime import datetime
+    with patch("baseball_aggregator.stats.datetime") as mock_dt:
+        mock_dt.now.return_value = datetime(2026, 1, 15)
+        assert current_season_year() == "2026"
+
+
+def test_current_season_year_july_returns_current_year():
+    from datetime import datetime
+    with patch("baseball_aggregator.stats.datetime") as mock_dt:
+        mock_dt.now.return_value = datetime(2026, 7, 31)
+        assert current_season_year() == "2026"
+
+
+def test_current_season_year_august_returns_next_year():
+    from datetime import datetime
+    with patch("baseball_aggregator.stats.datetime") as mock_dt:
+        mock_dt.now.return_value = datetime(2026, 8, 1)
+        assert current_season_year() == "2027"
+
+
+def test_current_season_year_december_returns_next_year():
+    from datetime import datetime
+    with patch("baseball_aggregator.stats.datetime") as mock_dt:
+        mock_dt.now.return_value = datetime(2026, 12, 31)
+        assert current_season_year() == "2027"
