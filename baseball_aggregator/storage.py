@@ -40,6 +40,7 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 
@@ -127,6 +128,22 @@ def init_db(conn: sqlite3.Connection) -> None:
             status TEXT NOT NULL,
             message TEXT NOT NULL DEFAULT '',
             tournaments_seen INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS team_records (
+            id            INTEGER PRIMARY KEY,
+            team_id       TEXT NOT NULL,
+            source        TEXT NOT NULL,
+            team_name     TEXT NOT NULL,
+            age_division  TEXT,
+            season        TEXT NOT NULL,
+            wins          INTEGER NOT NULL DEFAULT 0,
+            losses        INTEGER NOT NULL DEFAULT 0,
+            ties          INTEGER NOT NULL DEFAULT 0,
+            detail_url    TEXT,
+            scraped_at    TEXT,
+            FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
+            UNIQUE(team_id, source, team_name, season)
         );
         """
     )
@@ -900,3 +917,79 @@ def _selected_division_summaries(
             }
         )
     return summaries
+
+
+# ── team_records ───────────────────────────────────────────────────────────────
+
+def upsert_team_records(
+    conn: sqlite3.Connection,
+    team_id: str,
+    records: list[dict],
+) -> int:
+    """Insert or replace team W-L-T records. Returns count of rows written.
+
+    Each record dict must have: source, team_name, age_division, season,
+    wins, losses, ties. detail_url and scraped_at are optional.
+    """
+    now = datetime.now(UTC).isoformat()
+    written = 0
+    for r in records:
+        conn.execute(
+            """
+            INSERT INTO team_records
+                (team_id, source, team_name, age_division, season,
+                 wins, losses, ties, detail_url, scraped_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(team_id, source, team_name, season) DO UPDATE SET
+                age_division = excluded.age_division,
+                wins         = excluded.wins,
+                losses       = excluded.losses,
+                ties         = excluded.ties,
+                detail_url   = excluded.detail_url,
+                scraped_at   = excluded.scraped_at
+            """,
+            (
+                team_id,
+                r["source"],
+                r["team_name"],
+                r.get("age_division") or "",
+                r["season"],
+                int(r.get("wins") or 0),
+                int(r.get("losses") or 0),
+                int(r.get("ties") or 0),
+                r.get("detail_url") or "",
+                r.get("scraped_at") or now,
+            ),
+        )
+        written += 1
+    conn.commit()
+    return written
+
+
+def get_team_records(
+    conn: sqlite3.Connection,
+    team_id: str,
+    age_division: str | None = None,
+    season: str | None = None,
+) -> list[dict]:
+    """Return team_records rows, optionally filtered by age_division and/or season."""
+    query = "SELECT * FROM team_records WHERE team_id = ?"
+    params: list = [team_id]
+    if age_division:
+        query += " AND age_division = ?"
+        params.append(age_division)
+    if season:
+        query += " AND season = ?"
+        params.append(season)
+    query += " ORDER BY source, team_name"
+    rows = conn.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_available_seasons(conn: sqlite3.Connection, team_id: str) -> list[str]:
+    """Return distinct season values present in team_records, sorted descending."""
+    rows = conn.execute(
+        "SELECT DISTINCT season FROM team_records WHERE team_id = ? ORDER BY season DESC",
+        (team_id,),
+    ).fetchall()
+    return [r["season"] for r in rows]

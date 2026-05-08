@@ -45,6 +45,7 @@ from baseball_aggregator.storage import (
     update_team_password,
     update_team_settings,
     upsert_shortlist,
+    get_available_seasons,
     verify_team_password,
 )
 
@@ -407,29 +408,43 @@ def api_v1_refresh_runs(session: dict[str, Any] = Depends(_native_session)):
 
 
 @app.get("/api/team-stats")
-def api_team_stats(age: str | None = None, request: Request = None):
+def api_team_stats(
+    age: str | None = None,
+    season: str | None = None,
+    request: Request = None,
+):
     with connect() as conn:
-        settings = get_settings(conn)
+        team_id = _web_team_id(request) if request else "default"
+        settings = get_team_settings(conn, team_id)
         age_division = (age or settings["target_age_division"]).upper()
-        teams = stats.aggregate_team_records(conn, age_division)
+        teams = stats.aggregate_team_records(conn, team_id, age_division, season=season)
     return {
         "age": age_division,
+        "season": season or stats.current_season_year(),
         "teams": teams,
         "total_teams": len(teams),
-        "note": (
-            "NCS records are available for all tournaments. "
-            "USSSA and Perfect Game records only appear for tournaments whose team lists have been loaded."
-        ),
     }
 
 
 @app.get("/api/team-analysis")
-def api_team_analysis(age: str | None = None, request: Request = None):
+def api_team_analysis(
+    age: str | None = None,
+    season: str | None = None,
+    request: Request = None,
+):
     with connect() as conn:
-        settings = get_settings(conn)
-        age_division = (age or settings["target_age_division"]).upper()
         team_id = _web_team_id(request) if request else ""
-        return stats.team_analysis_records(conn, age_division, team_id=team_id)
+        settings = get_team_settings(conn, team_id) if team_id else get_settings(conn)
+        age_division = (age or settings["target_age_division"]).upper()
+        return stats.team_analysis_records(conn, age_division, team_id=team_id, season=season)
+
+
+@app.get("/api/available-seasons")
+def api_available_seasons(request: Request):
+    with connect() as conn:
+        team_id = _web_team_id(request)
+        seasons = get_available_seasons(conn, team_id)
+    return {"seasons": seasons, "current": stats.current_season_year()}
 
 
 @app.post("/api/ncs-teams/scrape")
@@ -463,6 +478,7 @@ def api_ncs_teams_scrape(
                 state=state,
                 age_division=age_division,
                 season_id=scrape_season_id,
+                team_id=team_id,
             )
         except ValueError as exc:
             return api_error("invalid_parameter", str(exc), 400)

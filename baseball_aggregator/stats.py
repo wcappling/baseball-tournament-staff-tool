@@ -3,7 +3,18 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from datetime import datetime
 from typing import Any
+
+
+def current_season_year() -> str:
+    """Return the ending year of the current baseball season.
+
+    Seasons run Fall–Summer labeled by the ending year.
+    August cutover: month >= 8 means the Fall semester of the new season has begun.
+    """
+    now = datetime.now()
+    return str(now.year + 1 if now.month >= 8 else now.year)
 
 
 def parse_record(s: str | None) -> tuple[int, int, int] | None:
@@ -33,75 +44,109 @@ def _format_record(wins: int, losses: int, ties: int) -> str:
     return f"{wins}-{losses}-{ties}"
 
 
-def aggregate_team_records(conn: sqlite3.Connection, age_division: str) -> list[dict[str, Any]]:
-    """Aggregate W-L-T records for all teams from hydrated tournament data.
+def aggregate_team_records(
+    conn: sqlite3.Connection,
+    team_id: str,
+    age_division: str,
+    season: str | None = None,
+) -> list[dict[str, Any]]:
+    """Aggregate W-L-T records for all teams.
 
-    Also merges records scraped directly from the NCS Teams listing page
-    (stored in ``ncs_team_records``) so that teams whose records exist on NCS
-    but whose tournament entries haven't been hydrated yet are still visible.
+    Reads from the unified ``team_records`` table when data is available
+    (populated by the stats worker). Falls back to ``division_teams`` JSON
+    and ``ncs_team_records`` for sources that haven't been enriched yet.
 
-    Groups teams by normalized name, accumulates wins/losses/ties per source,
+    Groups teams by normalized name, keeps the best record per source,
     and returns a list sorted by win% descending (then total games descending).
     """
-    rows = conn.execute(
-        "SELECT source, division_teams FROM tournaments WHERE division_teams != '{}'",
-    ).fetchall()
+    from baseball_aggregator.storage import get_team_records
+
+    if season is None:
+        season = current_season_year()
 
     age_prefix = age_division.strip().upper()
 
     # Keyed by normalized team name
     team_map: dict[str, dict[str, Any]] = {}
 
-    for row in rows:
-        source = row["source"]
-        try:
-            division_teams: dict[str, list[dict[str, Any]]] = json.loads(row["division_teams"])
-        except (json.JSONDecodeError, TypeError):
+    # --- Primary path: unified team_records table ---
+    unified = get_team_records(conn, team_id, season=season)
+    # Normalize age_division for filtering (partial prefix match)
+    unified_filtered = [
+        r for r in unified
+        if (r.get("age_division") or "").upper().startswith(age_prefix)
+        or age_prefix in (r.get("age_division") or "").upper()
+    ]
+    sources_in_unified: set[str] = set()
+    for r in unified_filtered:
+        sources_in_unified.add(r["source"])
+        raw_name: str = r["team_name"] or ""
+        if not raw_name.strip():
             continue
+        key = raw_name.strip().lower()
+        if key not in team_map:
+            team_map[key] = {"team_name": raw_name.strip(), "city_state": "", "sources": {}}
+        src = r["source"]
+        wins, losses, ties = int(r["wins"]), int(r["losses"]), int(r["ties"])
+        total = wins + losses + ties
+        existing = team_map[key]["sources"].get(src)
+        if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
+            team_map[key]["sources"][src] = {"wins": wins, "losses": losses, "ties": ties}
 
-        for division, teams in division_teams.items():
-            if _is_aggregate_key(division):
+    # --- Fallback path: division_teams JSON (sources not yet in team_records) ---
+    # Only runs for sources that have no data in team_records yet.
+    fallback_sources = {"ncs", "usssa", "perfect_game"} - sources_in_unified
+    if fallback_sources:
+        rows = conn.execute(
+            "SELECT source, division_teams FROM tournaments WHERE division_teams != '{}'",
+        ).fetchall()
+        for row in rows:
+            source = row["source"]
+            if source not in fallback_sources:
                 continue
-            if not division.upper().startswith(age_prefix):
+            try:
+                division_teams: dict[str, list[dict[str, Any]]] = json.loads(row["division_teams"])
+            except (json.JSONDecodeError, TypeError):
                 continue
-            if not isinstance(teams, list):
-                continue
-
-            for team in teams:
-                raw_name: str = team.get("team_name") or ""
-                if not raw_name.strip():
+            for division, teams in division_teams.items():
+                if _is_aggregate_key(division):
                     continue
-
-                key = raw_name.strip().lower()
-                if key not in team_map:
-                    team_map[key] = {
-                        "team_name": raw_name.strip(),
-                        "city_state": team.get("city_state") or "",
-                        "sources": {},
-                    }
-
-                record_str = team.get("record") or ""
-                parsed = parse_record(record_str)
-                if parsed is None:
+                if not division.upper().startswith(age_prefix):
                     continue
+                if not isinstance(teams, list):
+                    continue
+                for team in teams:
+                    raw_name = team.get("team_name") or ""
+                    if not raw_name.strip():
+                        continue
+                    key = raw_name.strip().lower()
+                    if key not in team_map:
+                        team_map[key] = {
+                            "team_name": raw_name.strip(),
+                            "city_state": team.get("city_state") or "",
+                            "sources": {},
+                        }
+                    record_str = team.get("record") or ""
+                    parsed = parse_record(record_str)
+                    if parsed is None:
+                        continue
+                    wins, losses, ties = parsed
+                    total = wins + losses + ties
+                    existing = team_map[key]["sources"].get(source)
+                    if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
+                        team_map[key]["sources"][source] = {"wins": wins, "losses": losses, "ties": ties}
 
-                wins, losses, ties = parsed
-                total = wins + losses + ties
-                existing = team_map[key]["sources"].get(source)
-                if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
-                    team_map[key]["sources"][source] = {"wins": wins, "losses": losses, "ties": ties}
-
-    # Merge records scraped directly from the NCS Teams listing page.
-    # These are stored separately in ncs_team_records and use source="ncs".
-    _merge_ncs_team_records(conn, age_prefix, team_map)
+        # Also pull from ncs_team_records if NCS not yet in team_records
+        if "ncs" in fallback_sources:
+            _merge_ncs_team_records(conn, age_prefix, team_map)
 
     results: list[dict[str, Any]] = []
     for data in team_map.values():
         sources = data["sources"]
-        total_wins = sum(s["wins"] for s in sources.values())
+        total_wins   = sum(s["wins"]   for s in sources.values())
         total_losses = sum(s["losses"] for s in sources.values())
-        total_ties = sum(s["ties"] for s in sources.values())
-        total_games = total_wins + total_losses + total_ties
+        total_ties   = sum(s["ties"]   for s in sources.values())
+        total_games  = total_wins + total_losses + total_ties
         win_pct = total_wins / total_games if total_games > 0 else 0.0
 
         def src_record(source_key: str) -> str:
@@ -111,15 +156,15 @@ def aggregate_team_records(conn: sqlite3.Connection, age_division: str) -> list[
             return _format_record(s["wins"], s["losses"], s["ties"])
 
         results.append({
-            "team_name": data["team_name"],
-            "city_state": data["city_state"],
-            "ncs_record": src_record("ncs"),
-            "usssa_record": src_record("usssa"),
-            "perfect_game_record": src_record("perfect_game"),
-            "cumulative_record": _format_record(total_wins, total_losses, total_ties),
-            "win_pct": round(win_pct, 4),
-            "total_games": total_games,
-            "sources_seen": list(sources.keys()),
+            "team_name":            data["team_name"],
+            "city_state":           data["city_state"],
+            "ncs_record":           src_record("ncs"),
+            "usssa_record":         src_record("usssa"),
+            "perfect_game_record":  src_record("perfect_game"),
+            "cumulative_record":    _format_record(total_wins, total_losses, total_ties),
+            "win_pct":              round(win_pct, 4),
+            "total_games":          total_games,
+            "sources_seen":         list(sources.keys()),
         })
 
     results.sort(key=lambda x: (-x["win_pct"], -x["total_games"]))
@@ -179,6 +224,7 @@ def team_analysis_records(
     conn: sqlite3.Connection,
     age_division: str,
     team_id: str = "",
+    season: str | None = None,
 ) -> dict[str, Any]:
     """Aggregate team records from tournaments marked Interested or Registered.
 
@@ -296,15 +342,34 @@ def team_analysis_records(
             "appearances": appearances,
         })
 
+    # Augment records from team_records table when available (more accurate than division_teams)
+    if team_id:
+        from baseball_aggregator.storage import get_team_records
+        effective_season = season or current_season_year()
+        unified = get_team_records(conn, team_id, season=effective_season)
+        unified_age = [
+            r for r in unified
+            if (r.get("age_division") or "").upper().startswith(age_prefix)
+            or age_prefix in (r.get("age_division") or "").upper()
+        ]
+        for r in unified_age:
+            raw_name: str = r["team_name"] or ""
+            key = raw_name.strip().lower()
+            if key not in team_map:
+                continue
+            src = r["source"]
+            wins, losses, ties = int(r["wins"]), int(r["losses"]), int(r["ties"])
+            total = wins + losses + ties
+            existing = team_map[key]["sources"].get(src)
+            if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
+                team_map[key]["sources"][src] = {"wins": wins, "losses": losses, "ties": ties}
+
     results.sort(key=lambda x: (-x["win_pct"], -x["total_games"]))
 
     return {
         "age": age_division,
+        "season": season or current_season_year(),
         "teams": results,
         "total_teams": len(results),
         "tournaments": list(tournament_info.values()),
-        "note": (
-            "Shows teams from tournaments marked Interested or Registered. "
-            "Records only appear for tournaments whose team lists have been loaded."
-        ),
     }

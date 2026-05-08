@@ -462,6 +462,24 @@ async function loadSettings() {
   profileEl.textContent = `${settings.home_label} - ${settings.radius_miles} mile base - ${settings.target_age_division}`;
   if (analysisAgeFilterEl) analysisAgeFilterEl.value = settings.target_age_division;
   if (statsAgeFilterEl)    statsAgeFilterEl.value    = settings.target_age_division;
+  await loadAvailableSeasons();
+}
+
+async function loadAvailableSeasons() {
+  try {
+    const data = await api("/api/available-seasons");
+    const seasons = data.seasons || [];
+    const current = data.current || "";
+    [statsSeasonFilterEl, analysisSeasonFilterEl].forEach(el => {
+      if (!el) return;
+      el.innerHTML = seasons.map(s =>
+        `<option value="${s}"${s === current ? " selected" : ""}>${s}</option>`
+      ).join("");
+      const show = seasons.length > 1;
+      el.hidden = !show;
+      if (el.parentElement) el.parentElement.hidden = !show;
+    });
+  } catch { /* seasons unavailable — keep selects hidden */ }
 }
 
 async function loadDivisions() {
@@ -833,6 +851,7 @@ const teamStatsCount = document.querySelector("#teamStatsCount");
 const teamStatsNote = document.querySelector("#teamStatsNote");
 const teamStatsRowsEl = document.querySelector("#teamStatsRows");
 const statsAgeFilterEl = document.querySelector("#statsAgeFilter");
+const statsSeasonFilterEl = document.querySelector("#statsSeasonFilter");
 const statsTeamSearchEl = document.querySelector("#statsTeamSearch");
 const statsMinGamesEl = document.querySelector("#statsMinGames");
 const statsApplyFilterEl = document.querySelector("#statsApplyFilter");
@@ -915,9 +934,13 @@ function renderTeamStatsRows(teams) {
 async function loadTeamStats() {
   if (!teamStatsRowsEl) return;
   const age = (statsAgeFilterEl ? statsAgeFilterEl.value : "") || (ageFilter ? ageFilter.value : "");
-  const params = age ? `?age=${encodeURIComponent(age)}` : "";
+  const season = statsSeasonFilterEl ? statsSeasonFilterEl.value : "";
+  const params = new URLSearchParams();
+  if (age) params.set("age", age);
+  if (season) params.set("season", season);
+  const paramStr = params.toString() ? `?${params.toString()}` : "";
   try {
-    const data = await api(`/api/team-stats${params}`);
+    const data = await api(`/api/team-stats${paramStr}`);
     teamStatsData = data.teams || [];
     if (teamStatsCount) {
       teamStatsCount.textContent = teamStatsData.length ? `(${teamStatsData.length} teams)` : "";
@@ -1113,6 +1136,7 @@ const teamAnalysisRowsEl = document.querySelector("#teamAnalysisRows");
 const teamAnalysisNote = document.querySelector("#teamAnalysisNote");
 const teamAnalysisEmpty = document.querySelector("#teamAnalysisEmpty");
 const analysisAgeFilterEl = document.querySelector("#analysisAgeFilter");
+const analysisSeasonFilterEl = document.querySelector("#analysisSeasonFilter");
 const analysisTeamSearchEl = document.querySelector("#analysisTeamSearch");
 const analysisMinGamesEl = document.querySelector("#analysisMinGames");
 const analysisTournamentFilterEl = document.querySelector("#analysisTournamentFilter");
@@ -1212,9 +1236,13 @@ function renderTeamAnalysisRows(teams) {
 async function loadTeamAnalysis() {
   if (!teamAnalysisRowsEl) return;
   const age = (analysisAgeFilterEl ? analysisAgeFilterEl.value : "") || (ageFilter ? ageFilter.value : "");
-  const params = age ? `?age=${encodeURIComponent(age)}` : "";
+  const season = analysisSeasonFilterEl ? analysisSeasonFilterEl.value : "";
+  const params = new URLSearchParams();
+  if (age) params.set("age", age);
+  if (season) params.set("season", season);
+  const paramStr = params.toString() ? `?${params.toString()}` : "";
   try {
-    const data = await api(`/api/team-analysis${params}`);
+    const data = await api(`/api/team-analysis${paramStr}`);
     teamAnalysisData = data.teams || [];
     teamAnalysisLoaded = true;
     if (teamAnalysisNote) teamAnalysisNote.textContent = data.note || "";
@@ -1282,6 +1310,18 @@ if (analysisAgeFilterEl) {
 }
 if (statsAgeFilterEl) {
   statsAgeFilterEl.addEventListener("change", () => {
+    teamStatsData = [];
+    loadTeamStats();
+  });
+}
+if (analysisSeasonFilterEl) {
+  analysisSeasonFilterEl.addEventListener("change", () => {
+    teamAnalysisLoaded = false;
+    loadTeamAnalysis();
+  });
+}
+if (statsSeasonFilterEl) {
+  statsSeasonFilterEl.addEventListener("change", () => {
     teamStatsData = [];
     loadTeamStats();
   });

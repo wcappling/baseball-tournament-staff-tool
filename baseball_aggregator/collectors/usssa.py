@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
 from datetime import date, datetime
 from typing import Any
+from urllib.parse import urlparse, parse_qs
 
 import httpx
 from bs4 import BeautifulSoup
@@ -425,3 +427,135 @@ def format_record(wins: Any, losses: Any, ties: Any = None) -> str:
     l = parse_int(losses) or 0
     t = parse_int(ties) or 0
     return f"{w}-{l}-{t}"
+
+
+# ── Team home page scraper ─────────────────────────────────────────────────────
+
+def parse_usssa_age_division(team_name: str) -> str:
+    """Extract age class from a USSSA team name string.
+
+    USSSA names follow the pattern: '(YEAR) Team Name (Age Class) | City, State'
+    Examples of age class: '8 & Under A', '10 & Under', '12U', '14 & Under B'
+    """
+    # Match the last parenthetical before the pipe or end of string
+    m = re.search(r'\((\d+[^)]+)\)\s*(?:\|.*)?$', team_name.strip())
+    return m.group(1).strip() if m else ""
+
+
+def parse_usssa_team_home(html: str, detail_url: str) -> list[dict]:
+    """Parse W-L-T season records from a USSSA team home page.
+
+    Returns a list of dicts with keys: team_name, age_division, season,
+    wins, losses, ties, detail_url, source.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    records: list[dict] = []
+
+    # Team name is in the page <title> or a prominent heading
+    title_tag = soup.find("title")
+    raw_name = title_tag.get_text(strip=True) if title_tag else ""
+    # Title format: "(2026) Name (Age Class) | City, State | USSSA"
+    # Strip the trailing " | USSSA" suffix
+    raw_name = re.sub(r'\s*\|\s*USSSA\s*$', '', raw_name, flags=re.IGNORECASE).strip()
+    age_division = parse_usssa_age_division(raw_name)
+
+    # Extract team name without year prefix and trailing pipe sections
+    team_name = re.sub(r'^\(\d{4}\)\s*', '', raw_name)  # remove "(2026) "
+    team_name = re.split(r'\s*\|', team_name)[0].strip()   # remove "| City, State"
+
+    # Season record table — USSSA renders season stats in a table with Year/W/L/T columns
+    for table in soup.find_all("table"):
+        headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
+        year_idx = next((i for i, h in enumerate(headers) if "year" in h or "season" in h), None)
+        w_idx    = next((i for i, h in enumerate(headers) if h in ("w", "wins")), None)
+        l_idx    = next((i for i, h in enumerate(headers) if h in ("l", "losses")), None)
+        t_idx    = next((i for i, h in enumerate(headers) if h in ("t", "ties")), None)
+        if year_idx is None or w_idx is None or l_idx is None:
+            continue
+        for row in table.find_all("tr")[1:]:
+            cells = row.find_all("td")
+            if len(cells) <= max(year_idx, w_idx, l_idx):
+                continue
+            season_text = cells[year_idx].get_text(strip=True)
+            # Season may be "2025-2026" or "2026" — extract the ending year
+            year_match = re.search(r'(\d{4})', season_text)
+            if not year_match:
+                continue
+            season = year_match.group(1)
+            wins   = parse_int(cells[w_idx].get_text(strip=True)) or 0
+            losses = parse_int(cells[l_idx].get_text(strip=True)) or 0
+            ties   = parse_int(cells[t_idx].get_text(strip=True)) if t_idx is not None and t_idx < len(cells) else 0
+            records.append({
+                "source":       SOURCE,
+                "team_name":    team_name,
+                "age_division": age_division,
+                "season":       season,
+                "wins":         wins,
+                "losses":       losses,
+                "ties":         ties or 0,
+                "detail_url":   detail_url,
+            })
+
+    return records
+
+
+async def _fetch_one_team_home(
+    client: httpx.AsyncClient,
+    sem: asyncio.Semaphore,
+    url: str,
+) -> list[dict]:
+    async with sem:
+        try:
+            resp = await client.get(url, timeout=15)
+            resp.raise_for_status()
+            return parse_usssa_team_home(resp.text, url)
+        except Exception:
+            return []
+
+
+async def fetch_usssa_team_histories(detail_urls: list[str]) -> list[dict]:
+    """Async batch fetch of USSSA team home pages. Returns flat list of record dicts."""
+    if not detail_urls:
+        return []
+    sem = asyncio.Semaphore(10)
+    async with httpx.AsyncClient(
+        headers=HEADERS,
+        follow_redirects=True,
+        timeout=15,
+    ) as client:
+        results = await asyncio.gather(
+            *[_fetch_one_team_home(client, sem, url) for url in detail_urls],
+            return_exceptions=True,
+        )
+    flat: list[dict] = []
+    for r in results:
+        if isinstance(r, list):
+            flat.extend(r)
+    return flat
+
+
+def extract_usssa_team_ids_from_tournaments(tournaments: list[dict]) -> dict[str, str]:
+    """Extract {usssa_team_id: detail_url} from division_teams JSON across all tournaments.
+
+    Deduplicates by USSSA teamID so each team home page is only fetched once.
+    """
+    seen: dict[str, str] = {}
+    for t in tournaments:
+        division_teams = t.get("division_teams") or {}
+        if isinstance(division_teams, str):
+            try:
+                division_teams = json.loads(division_teams)
+            except (json.JSONDecodeError, TypeError):
+                division_teams = {}
+        for teams in division_teams.values():
+            if not isinstance(teams, list):
+                continue
+            for team in teams:
+                url = team.get("detail_url") or ""
+                if not url or "teamHome" not in url:
+                    continue
+                qs = parse_qs(urlparse(url).query)
+                team_id = (qs.get("teamID") or qs.get("teamId") or [""])[0]
+                if team_id and team_id not in seen:
+                    seen[team_id] = url
+    return seen
