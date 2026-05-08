@@ -39,6 +39,7 @@ def fetch_tournaments(
     lat: float = HUNTSVILLE_LAT,
     lng: float = HUNTSVILLE_LNG,
     target_age: str | None = None,
+    enrich_team_lists: bool = True,
     client: httpx.Client | None = None,
 ) -> list[Tournament]:
     own_client = client is None
@@ -67,7 +68,11 @@ def fetch_tournaments(
                 break
             page += 1
 
-        return parse_api_results(all_groups)
+        tournaments = parse_api_results(all_groups)
+        if enrich_team_lists:
+            for tournament in tournaments:
+                enrich_with_team_lists(tournament, client, target_age)
+        return tournaments
     finally:
         if own_client:
             client.close()
@@ -215,6 +220,34 @@ def fetch_tournament_teams(client: httpx.Client, event_id: str, division: str) -
     )
     response.raise_for_status()
     return parse_tournament_teams(response.text, division)
+
+
+def enrich_with_team_lists(
+    tournament: Tournament,
+    client: httpx.Client,
+    target_age: str | None = None,
+) -> Tournament:
+    target = target_age.upper() if target_age else ""
+    for division, details in tournament.division_details.items():
+        if target and not division.upper().startswith(f"{target} "):
+            continue
+        if tournament.division_team_counts.get(division, 0) <= 0:
+            continue
+        event_id = details.get("event_id")
+        if not event_id:
+            continue
+        try:
+            teams = fetch_tournament_teams(client, str(event_id), division)
+        except (httpx.HTTPError, RuntimeError, ValueError):
+            teams = []
+        if not teams:
+            continue
+        tournament.division_teams[division] = teams
+        age_match = re.match(r"^(\d{1,2}U)\b", division, re.IGNORECASE)
+        if age_match:
+            age_key = age_match.group(1).upper()
+            tournament.division_teams.setdefault(age_key, []).extend(teams)
+    return tournament
 
 
 def parse_tournament_teams(html: str, division: str) -> list[dict[str, Any]]:

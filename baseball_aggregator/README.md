@@ -1,121 +1,42 @@
-# Baseball Tournament Staff Tool
+# Tournament IQ
 
-Staff-only web app for discovering and shortlisting baseball tournaments across
-NCS, USSSA, and Perfect Game.
+Staff tool for discovering and shortlisting youth baseball tournaments across NCS, USSSA, and Perfect Game. Runs as a multi-tenant web app and exposes a native `/api/v1` API for iOS clients.
 
-V1 defaults to a Huntsville, AL team profile, a 200-mile radius, an 8U target
-division, dark mode, and a 4-team highlight threshold.
+---
 
-## Quick start
-
-From the repository root:
+## Quick start (local)
 
 ```bat
-setup.bat
-test.bat
-run.bat
+setup.bat   :: creates .venv, installs Python deps, installs Playwright Chromium
+test.bat    :: runs all Python tests + Vitest unit tests
+run.bat     :: starts the server at http://127.0.0.1:8000
 ```
 
-Then open <http://127.0.0.1:8000>.
+No password required locally unless `STAFF_TOOL_PASSWORD` is set. Open `http://127.0.0.1:8000` in a browser.
 
-Local development does not require a password unless `STAFF_TOOL_PASSWORD` is
-set.
+---
 
-## UI screenshots and videos
+## Environment variables
 
-Use Playwright to capture repeatable UI review artifacts after frontend changes:
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `STAFF_TOOL_PASSWORD` | Prod only | — | Enables auth; shared staff password for the web UI |
+| `SESSION_SECRET` | Prod only | dev fallback | Signs session cookies (min 32 chars, random) |
+| `STAFF_TOOL_DATA_DIR` | Prod | `baseball_aggregator/data` | SQLite database and backup directory |
+| `STAFF_TOOL_HOSTED` | Recommended | `false` | Switches secure cookie flag; startup fails without secrets |
+| `STAFF_TOOL_ENABLE_HOSTED_JOBS` | Optional | `false` | Enables in-process refresh and backup loops |
+| `DEV_AUTO_LOGIN` | Dev only | — | Bypasses login entirely; **never set on prod** |
 
-```bat
-demo.bat
-```
+Copy `.env.example` for a starting point.
 
-The demo command installs the Python Playwright package, installs Chromium if
-needed, starts the FastAPI app against a throwaway SQLite database, seeds a few
-sample tournaments, and writes screenshots plus WebM videos to:
+---
 
-```text
-.tmp/ui-demos
-```
+## Team management
 
-For Codex web or a Linux cloud runner, use these setup commands:
+Each team gets its own slug, password, shortlist, notes, and settings. Manage teams from the repo root:
 
 ```bash
-python -m pip install -r requirements.txt -r requirements-dev.txt
-python -m playwright install --with-deps chromium
-```
-
-Then capture UI artifacts with:
-
-```bash
-python scripts/capture_ui_demo.py
-```
-
-The script keeps demo data isolated under `.tmp/ui-demo-data`, disables hosted
-jobs, and does not require a staff password. To point it at an already-running
-app instead, run:
-
-```bash
-python scripts/capture_ui_demo.py --skip-server --base-url http://127.0.0.1:8000
-```
-
-## Current status
-
-| Source | Status | Notes |
-|---|---|---|
-| NCS | Live collector + parser | Uses public event pages and Who's Coming pages for age-bracket team counts. |
-| USSSA | Live API-backed collector + parser | Uses public event search and division endpoints for team-entered and approved counts. |
-| Perfect Game | Live collector + parser | Uses public search data and lazy team-list loading from event pages. |
-| Grand Slam | Deferred | Planned after the shareable web MVP and iOS path. Hidden from active source filters. |
-
-## Staff-shareable Railway deploy
-
-The recommended first hosted release is Railway Hobby with a Railway-generated
-URL and a persistent volume for SQLite.
-
-Railway start command from the repository root:
-
-```bash
-python -m uvicorn baseball_aggregator.app:app --host 0.0.0.0 --port $PORT
-```
-
-This repository includes both `Procfile` and `railway.json` with that start
-command, plus root-level `requirements.txt` and `.python-version` files so
-Railway detects the app as Python.
-
-Required Railway variables:
-
-```text
-STAFF_TOOL_PASSWORD=<shared staff password>
-SESSION_SECRET=<long random secret>
-STAFF_TOOL_DATA_DIR=/data
-```
-
-Recommended Railway variables:
-
-```text
-STAFF_TOOL_HOSTED=true
-STAFF_TOOL_ENABLE_HOSTED_JOBS=true
-```
-
-Railway also sets `RAILWAY_ENVIRONMENT`; when hosted mode is detected, startup
-fails clearly unless password, session secret, and data directory are configured.
-Mount the Railway volume at the same path used by `STAFF_TOOL_DATA_DIR`, such as
-`/data`, so the SQLite database and backups survive redeploys.
-
-## Password rotation
-
-Change `STAFF_TOOL_PASSWORD` in Railway to rotate the shared password for new
-logins. Rotate `SESSION_SECRET` at the same time when current logged-in staff
-sessions should be invalidated. Session cookies are HTTP-only, signed, and valid
-for 30 days.
-
-## Team logins for native clients
-
-The native `/api/v1` API uses team-scoped shared logins so different teams can
-share the same tournament pool while keeping notes, statuses, and default
-filters separate. Create or rotate a team login from the repository root with:
-
-```bash
+# Create or update a team
 python -m baseball_aggregator.team_admin upsert \
   --slug 8u-hawks \
   --display-name "8U Hawks" \
@@ -126,69 +47,136 @@ python -m baseball_aggregator.team_admin upsert \
   --enabled-source ncs \
   --enabled-source usssa \
   --enabled-source perfect_game
-```
 
-Repeat the command with the same `--slug` to update settings or rotate that
-team's password. List configured teams without exposing password hashes with:
-
-```bash
+# List all teams (passwords not shown)
 python -m baseball_aggregator.team_admin list
 ```
 
-## Backups and restore
+Re-run `upsert` with the same `--slug` to update settings or rotate that team's password.
 
-Hosted jobs run inside the app process when `STAFF_TOOL_ENABLE_HOSTED_JOBS=true`.
-They refresh sources every 6 hours based on the app settings and create a SQLite
-backup at UTC midnight each day. The newest 7 backup files are retained under:
+---
 
-```text
-<STAFF_TOOL_DATA_DIR>/backups
+## Deploy to Railway
+
+The repo ships `Procfile` and `railway.json` so Railway auto-detects the start command.
+
+**Start command:**
+```bash
+python -m uvicorn baseball_aggregator.app:app --host 0.0.0.0 --port $PORT
 ```
 
-To restore, stop the app, replace `<STAFF_TOOL_DATA_DIR>/baseball_staff_tool.sqlite3`
-with the chosen backup file, then restart the app.
+**Required Railway variables:**
+```
+STAFF_TOOL_PASSWORD=<long shared password>
+SESSION_SECRET=<long random secret>
+STAFF_TOOL_DATA_DIR=/data
+```
+
+**Recommended Railway variables:**
+```
+STAFF_TOOL_HOSTED=true
+STAFF_TOOL_ENABLE_HOSTED_JOBS=true
+```
+
+Mount a Railway persistent volume at `/data` (or whatever `STAFF_TOOL_DATA_DIR` is set to) so the SQLite database and backups survive redeploys.
+
+Two services are maintained:
+
+| Service | Branch | Purpose |
+|---|---|---|
+| Tournament IQ Dev | `dev` | Active development; `DEV_AUTO_LOGIN=true` set here |
+| Tournament IQ Prod | `main` | Production; no `DEV_AUTO_LOGIN` |
+
+All feature PRs target `dev`. Production releases are batched merges from `dev → main`.
+
+---
+
+## Password rotation
+
+Change `STAFF_TOOL_PASSWORD` in Railway to rotate the shared web-UI password. Rotate `SESSION_SECRET` at the same time to invalidate all current logged-in sessions. Cookies are `httponly`, signed with HMAC-SHA256, and valid for 30 days.
+
+---
+
+## Data sources
+
+| Source | Status | Team records |
+|---|---|---|
+| NCS | Live | WhosComing pages + Teams listing scraper |
+| USSSA | Live | API-backed; seeding reports per division |
+| Perfect Game | Live | API-backed; team lists per division event |
+| Grand Slam | Deferred | Post-MVP; hidden from active source filters |
+
+A manual refresh can be triggered from the Settings panel in the UI or via `POST /api/refresh`. The hosted refresh loop runs every 6 hours (configurable per team). Team lists (records) are hydrated automatically during refresh.
+
+---
+
+## Backups
+
+When `STAFF_TOOL_ENABLE_HOSTED_JOBS=true` the app creates a SQLite backup at UTC midnight and retains the 7 most recent files at:
+
+```
+<STAFF_TOOL_DATA_DIR>/backups/
+```
+
+To restore: stop the app, replace `<STAFF_TOOL_DATA_DIR>/baseball_staff_tool.sqlite3` with the chosen backup, restart.
+
+---
 
 ## Project layout
 
-```text
+```
 baseball_aggregator/
-  app.py                  FastAPI app and API routes
-  models.py               Normalized tournament model and defaults
-  storage.py              SQLite schema, persistence, settings, shortlist, changes
-  services.py             Refresh orchestration
-  refresh_loop.py         Optional 6-hour local refresh loop
-  collectors/             Source adapters
-  static/                 Browser UI
-  tests/                  Offline parser, storage, and API tests
-  data/                   Local SQLite database, created automatically
+  app.py              FastAPI application — all HTTP endpoints
+  auth.py             Session middleware, cookie signing, bearer token auth
+  config.py           Environment variable helpers
+  models.py           Tournament dataclass, DEFAULT_SETTINGS
+  storage.py          SQLite schema, all queries, settings, shortlist, changes
+  stats.py            W-L-T aggregation engine
+  services.py         Refresh orchestration, team hydration
+  maintenance.py      Backup creation and pruning
+  refresh_loop.py     Optional standalone refresh cadence runner
+  team_admin.py       CLI for managing team accounts
+  collectors/         Source adapters (ncs, usssa, perfect_game)
+  scrapers/           Direct HTML scrapers (ncs_teams)
+  static/             SPA frontend (index.html, app.js, utils.js, styles.css)
+  tests/              Backend tests (pytest) and frontend tests (Vitest + Playwright)
+  data/               Local SQLite database — created on first run
 ```
 
-## Core behavior
+See [ARCHITECTURE.md](../ARCHITECTURE.md) for a deeper walkthrough.
 
-- Dense sortable tournament table with source, date, location, age, team count,
-  status, and notes.
-- Team-count-first comparison with a default 4+ team threshold.
-- NCS bracket-level counts from Who's Coming pages, with event-level fallback.
-- Warning when only event-level team count is known.
-- Shortlist statuses: Watch, Interested, Registered, Declined.
-- Local change log for newly discovered tournaments and tracked field changes.
-- Manual refresh endpoint and optional `python -m baseball_aggregator.refresh_loop`
-  cadence runner.
+---
 
-## API sketch
+## UI captures
 
-- `GET /api/settings`
-- `PUT /api/settings`
-- `GET /api/tournaments`
-- `GET /api/divisions`
-- `POST /api/refresh`
-- `POST /api/tournaments/{id}/teams`
-- `GET /api/changes`
-- `GET /api/refresh-runs`
-- `PUT /api/tournaments/{id}/shortlist`
+```bat
+demo.bat
+```
 
-## Next source work
+Starts the app with a temporary database, seeds sample data, and writes screenshots + WebM recordings to `.tmp/ui-demos`. Linux/CI equivalent:
 
-NCS, USSSA, and Perfect Game are the live V1 sources. Grand Slam remains a
-deferred post-MVP source so staff are not confused by an active filter with no
-results.
+```bash
+python -m pip install -r requirements.txt -r requirements-dev.txt
+python -m playwright install --with-deps chromium
+python scripts/capture_ui_demo.py
+```
+
+---
+
+## API
+
+The web app uses cookie-authenticated routes under `/api/*`.
+
+A native (iOS) client uses token-authenticated routes under `/api/v1/*`. See [docs/api.md](../docs/api.md) for the full reference.
+
+---
+
+## Tests
+
+```bash
+python -m pytest          # 64 Python backend tests
+npm test                  # 74 Vitest unit tests (pure JS functions)
+python -m pytest baseball_aggregator/tests/frontend/e2e/  # 8 Playwright E2E tests
+```
+
+See [docs/testing.md](../docs/testing.md) for details on each suite.

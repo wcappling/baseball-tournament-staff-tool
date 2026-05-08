@@ -148,6 +148,157 @@ body.login-page {
   font-weight: 700;
 }
 
+/* ── Signup panel ─────────────────────────────────────────────────────────── */
+
+.setup-card {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  overflow: hidden;
+}
+
+.setup-summary {
+  padding: 14px 18px;
+  font-size: .875rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--accent);
+  list-style: none;
+  user-select: none;
+}
+.setup-summary::-webkit-details-marker { display: none; }
+.setup-summary::after { content: " ▸"; font-size: .75rem; opacity: .6; }
+details[open] .setup-summary::after { content: " ▾"; }
+
+.setup-form {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.signup-preview {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--brand-primary, #6750A4), var(--brand-secondary, #625B71), var(--brand-accent, #7D5260));
+  margin-bottom: 4px;
+}
+
+.field-label { font-size: .875rem; font-weight: 500; }
+.field-hint { display: block; font-size: .75rem; color: var(--muted); margin-top: 2px; }
+.field-hint.optional { font-style: italic; }
+
+.logo-upload-row { display: flex; flex-direction: column; gap: 4px; }
+.logo-file-input { display: none; }
+.logo-upload-btn {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 5px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  font-size: .8rem;
+  cursor: pointer;
+  color: var(--ink);
+  background: transparent;
+}
+
+.color-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.color-label {
+  font-size: .75rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.color-label input[type="color"] {
+  width: 48px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px;
+  cursor: pointer;
+  background: var(--input-bg);
+}
+
+/* ── Settings view ────────────────────────────────────────────────────────── */
+
+.settings-view {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: grid;
+  gap: 24px;
+}
+
+.settings-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.settings-card h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--ink);
+}
+
+.settings-card h2.danger { color: var(--warn); }
+
+.settings-row {
+  display: grid;
+  gap: 14px;
+}
+
+@media (min-width: 480px) {
+  .settings-row--2col { grid-template-columns: 1fr 1fr; }
+}
+
+.settings-preview-strip {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--brand-primary, #6750A4), var(--brand-secondary, #625B71), var(--brand-accent, #7D5260));
+}
+
+.settings-msg {
+  font-size: .8rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+  display: none;
+}
+.settings-msg.visible { display: block; }
+.settings-msg.success { background: rgba(22, 163, 74, .15); color: #16a34a; }
+.settings-msg.error   { background: rgba(220, 38, 38, .12); color: var(--warn); }
+
+.danger-confirm { display: grid; gap: 8px; }
+
+/* ── Admin view ───────────────────────────────────────────────────────────── */
+
+.admin-view {
+  padding: 24px 16px 48px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.admin-view .section-header { margin-bottom: 16px; }
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+.admin-table th, .admin-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.admin-table th { font-weight: 600; color: var(--muted); font-size: .75rem; }
+.admin-table tr:last-child td { border-bottom: none; }
+.admin-table .col-actions { text-align: right; white-space: nowrap; }
+.admin-table .col-actions button { margin-left: 6px; }
+.admin-badge--active   { color: #16a34a; font-size: .75rem; font-weight: 600; }
+.admin-badge--inactive { color: var(--warn); font-size: .75rem; font-weight: 600; }
+
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 
 .sidebar {
@@ -653,6 +804,10 @@ td {
 
 .name {
   font-weight: 700;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .subtle {
@@ -704,6 +859,7 @@ tr.status-declined td {
 textarea {
   min-width: 220px;
   min-height: 44px;
+  max-height: 80px;
   resize: vertical;
 }
 
@@ -920,10 +1076,15 @@ textarea {
 .skill-badge--middle-competitive { background: #d9770622; color: #d97706; }
 .skill-badge--developmental      { background: #16a34a22; color: #16a34a; }
 
+[data-theme="dark"] .skill-badge--elite---national   { background: #7c3aed22; color: #a78bfa; }
+[data-theme="dark"] .skill-badge--high-competitive   { background: #dc262622; color: #fca5a5; }
+[data-theme="dark"] .skill-badge--middle-competitive { background: #d9770622; color: #fcd34d; }
+[data-theme="dark"] .skill-badge--developmental      { background: #16a34a22; color: #86efac; }
+
 /* ── Teams / Analysis ──────────────────────────────────────────────────────── */
 
 .appearance-list {
-  max-width: 320px;
+  max-width: min(320px, 85vw);
   white-space: normal;
   line-height: 1.5;
 }
@@ -1009,7 +1170,7 @@ textarea {
 }
 
 .appearance-list {
-  max-width: 320px;
+  max-width: min(320px, 85vw);
   white-space: normal;
   line-height: 1.5;
 }
@@ -1222,6 +1383,23 @@ textarea {
   .team-list {
     min-width: 560px;
   }
+
+  /* Inline filter dropdowns: release the 220px min-width so they fit on small screens */
+  .inline-filter-select--wide {
+    min-width: auto;
+    width: 100%;
+  }
+
+  /* Stack inline filters vertically so each control is full-width */
+  .inline-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inline-filter-btn,
+  .inline-filter-btn--primary {
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1308,6 +1486,12 @@ textarea {
   .team-stats-table .col-ncs,
   .team-stats-table .col-usssa,
   .team-stats-table .col-pg {
+    display: none;
+  }
+
+  /* Hide Tournaments/appearances column on mobile — chips overflow badly */
+  #teamAnalysisTable th[data-analysis-sort="tournament_count"],
+  #teamAnalysisTable .appearance-list {
     display: none;
   }
 

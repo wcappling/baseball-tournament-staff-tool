@@ -20,6 +20,7 @@ from baseball_aggregator.auth import (
     get_web_team_id,
     handle_login,
     handle_logout,
+    handle_signup,
     login_page,
 )
 from baseball_aggregator.config import get_backup_dir, hosted_jobs_enabled, require_hosted_config
@@ -27,6 +28,7 @@ from baseball_aggregator.maintenance import create_sqlite_backup, prune_backups
 from baseball_aggregator import services, stats
 from baseball_aggregator.storage import (
     connect,
+    delete_team,
     get_changes,
     get_session_for_token,
     get_settings,
@@ -34,10 +36,13 @@ from baseball_aggregator.storage import (
     init_db,
     latest_refresh_runs,
     list_divisions,
+    list_teams,
     revoke_team_session,
     search_tournaments,
     create_team_session,
+    set_team_active,
     update_settings,
+    update_team_password,
     update_team_settings,
     upsert_shortlist,
     verify_team_password,
@@ -135,6 +140,11 @@ async def post_login(request: Request):
 @app.post("/logout")
 def post_logout():
     return handle_logout()
+
+
+@app.post("/signup")
+async def post_signup(request: Request):
+    return await handle_signup(request)
 
 
 def _bearer_token(authorization: str | None) -> str:
@@ -373,13 +383,13 @@ def api_v1_tournament_teams(
 
 
 @app.get("/api/changes")
-def api_changes(limit: int = 50):
+def api_changes(limit: int = Query(default=50, le=500)):
     with connect() as conn:
         return get_changes(conn, limit=limit)
 
 
 @app.get("/api/v1/changes")
-def api_v1_changes(limit: int = 50, session: dict[str, Any] = Depends(_native_session)):
+def api_v1_changes(limit: int = Query(default=50, le=500), session: dict[str, Any] = Depends(_native_session)):
     with connect() as conn:
         return get_changes(conn, limit=limit)
 
@@ -457,7 +467,8 @@ def api_ncs_teams_scrape(
         except ValueError as exc:
             return api_error("invalid_parameter", str(exc), 400)
         except Exception as exc:
-            return api_error("scrape_failed", f"NCS scrape failed: {exc}", 502)
+            print(f"NCS scrape error: {exc}")
+            return api_error("scrape_failed", "NCS scrape failed — check server logs", 502)
 
     return result
 
@@ -478,11 +489,83 @@ def api_v1_shortlist(
         return upsert_shortlist(conn, tournament_id, payload.model_dump(), team_id=session["team_id"])
 
 
+# ── Settings management ───────────────────────────────────────────────────────
+
+@app.post("/api/password")
+async def api_change_password(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body.")
+    current_pw = payload.get("current_password", "")
+    new_pw     = payload.get("new_password", "")
+    confirm_pw = payload.get("confirm_password", "")
+    if len(new_pw) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    if new_pw != confirm_pw:
+        raise HTTPException(status_code=400, detail="Passwords do not match.")
+    team_id = _web_team_id(request)
+    with connect() as conn:
+        row = conn.execute("SELECT slug FROM teams WHERE id = ?", (team_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=400, detail="Cannot change password for this account.")
+        if verify_team_password(conn, row["slug"], current_pw) is None:
+            raise HTTPException(status_code=400, detail="Current password is incorrect.")
+        update_team_password(conn, team_id, new_pw)
+    return {"status": "ok"}
+
+
+@app.delete("/api/team")
+async def api_delete_team(request: Request):
+    team_id = _web_team_id(request)
+    if team_id == "default":
+        raise HTTPException(status_code=400, detail="Cannot delete the default account.")
+    with connect() as conn:
+        delete_team(conn, team_id)
+    response = JSONResponse({"status": "ok"})
+    response.delete_cookie(COOKIE_NAME)
+    return response
+
+
+# ── Admin endpoints ───────────────────────────────────────────────────────────
+
+def _require_admin(request: Request) -> str:
+    team_id = _web_team_id(request)
+    if team_id != "default":
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    return team_id
+
+
+@app.get("/api/admin/teams")
+def api_admin_list_teams(request: Request):
+    _require_admin(request)
+    with connect() as conn:
+        return list_teams(conn)
+
+
+@app.put("/api/admin/teams/{team_id}/active")
+def api_admin_set_active(team_id: str, payload: dict[str, Any], request: Request):
+    _require_admin(request)
+    with connect() as conn:
+        set_team_active(conn, team_id, bool(payload.get("active", True)))
+    return {"status": "ok"}
+
+
+@app.delete("/api/admin/teams/{team_id}")
+def api_admin_delete_team(team_id: str, request: Request):
+    _require_admin(request)
+    if team_id == "default":
+        raise HTTPException(status_code=400, detail="Cannot delete the default account.")
+    with connect() as conn:
+        delete_team(conn, team_id)
+    return {"status": "ok"}
+
+
 async def _refresh_loop() -> None:
     while True:
         with connect() as conn:
             settings = get_settings(conn)
-        cadence_seconds = max(1, int(settings["refresh_cadence_hours"])) * 60 * 60
+        cadence_seconds = max(300, round(float(settings["refresh_cadence_hours"]) * 3600))
         await asyncio.sleep(cadence_seconds)
         await asyncio.to_thread(services.refresh_sources)
 
