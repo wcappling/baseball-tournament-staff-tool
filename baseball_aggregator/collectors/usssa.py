@@ -442,61 +442,54 @@ def parse_usssa_age_division(team_name: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-def parse_usssa_team_home(html: str, detail_url: str) -> list[dict]:
-    """Parse W-L-T season records from a USSSA team home page.
+def parse_usssa_manager_history(payload: dict, detail_url: str) -> list[dict]:
+    """Parse W-L season records from the teamInfoV11 managerHistory API response.
+
+    The USSSA team home page is an AngularJS SPA; data is served via
+    POST /api/?action=teamInfoV11 with page=managerHistory.
 
     Returns a list of dicts with keys: team_name, age_division, season,
     wins, losses, ties, detail_url, source.
     """
-    soup = BeautifulSoup(html, "html.parser")
+    from baseball_aggregator.stats import current_season_year
+
+    info = payload.get("info") or {}
+    history_data = payload.get("managerHistory") or {}
+    history = history_data.get("history") or []
+
+    team_name = clean_text(info.get("name") or "")
+    age_division = clean_text(info.get("classedAs") or info.get("endYearClass") or "")
+    current_season_id = parse_int(info.get("seasonID"))
+
     records: list[dict] = []
-
-    # Team name is in the page <title> or a prominent heading
-    title_tag = soup.find("title")
-    raw_name = title_tag.get_text(strip=True) if title_tag else ""
-    # Title format: "(2026) Name (Age Class) | City, State | USSSA"
-    # Strip the trailing " | USSSA" suffix
-    raw_name = re.sub(r'\s*\|\s*USSSA\s*$', '', raw_name, flags=re.IGNORECASE).strip()
-    age_division = parse_usssa_age_division(raw_name)
-
-    # Extract team name without year prefix and trailing pipe sections
-    team_name = re.sub(r'^\(\d{4}\)\s*', '', raw_name)  # remove "(2026) "
-    team_name = re.split(r'\s*\|', team_name)[0].strip()   # remove "| City, State"
-
-    # Season record table — USSSA renders season stats in a table with Year/W/L/T columns
-    for table in soup.find_all("table"):
-        headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
-        year_idx = next((i for i, h in enumerate(headers) if "year" in h or "season" in h), None)
-        w_idx    = next((i for i, h in enumerate(headers) if h in ("w", "wins")), None)
-        l_idx    = next((i for i, h in enumerate(headers) if h in ("l", "losses")), None)
-        t_idx    = next((i for i, h in enumerate(headers) if h in ("t", "ties")), None)
-        if year_idx is None or w_idx is None or l_idx is None:
-            continue
-        for row in table.find_all("tr")[1:]:
-            cells = row.find_all("td")
-            if len(cells) <= max(year_idx, w_idx, l_idx):
-                continue
-            season_text = cells[year_idx].get_text(strip=True)
-            # Season may be "2025-2026" or "2026" — extract the ending year
-            year_match = re.search(r'(\d{4})', season_text)
-            if not year_match:
-                continue
-            season = year_match.group(1)
-            wins   = parse_int(cells[w_idx].get_text(strip=True)) or 0
-            losses = parse_int(cells[l_idx].get_text(strip=True)) or 0
-            ties   = parse_int(cells[t_idx].get_text(strip=True)) if t_idx is not None and t_idx < len(cells) else 0
-            records.append({
-                "source":       SOURCE,
-                "team_name":    team_name,
-                "age_division": age_division,
-                "season":       season,
-                "wins":         wins,
-                "losses":       losses,
-                "ties":         ties or 0,
-                "detail_url":   detail_url,
-            })
-
+    for entry in history:
+        wins = parse_int(entry.get("wins")) or 0
+        loses = parse_int(entry.get("loses")) or 0
+        entry_season_id = parse_int(entry.get("season_id"))
+        # Map season_id to year: current seasonID maps to current_season_year();
+        # each prior season is one year earlier.
+        if current_season_id and entry_season_id is not None:
+            year_offset = entry_season_id - current_season_id
+            season = str(int(current_season_year()) + year_offset)
+        else:
+            season = current_season_year()
+        records.append({
+            "source":       SOURCE,
+            "team_name":    team_name,
+            "age_division": age_division,
+            "season":       season,
+            "wins":         wins,
+            "losses":       loses,
+            "ties":         0,  # managerHistory totals don't include ties
+            "detail_url":   detail_url,
+        })
     return records
+
+
+# Keep old name as alias so existing tests that import parse_usssa_team_home still work
+def parse_usssa_team_home(html: str, detail_url: str) -> list[dict]:
+    """Legacy HTML parser — USSSA pages require JS; use parse_usssa_manager_history instead."""
+    return []
 
 
 async def _fetch_one_team_home(
@@ -504,11 +497,21 @@ async def _fetch_one_team_home(
     sem: asyncio.Semaphore,
     url: str,
 ) -> list[dict]:
+    qs = parse_qs(urlparse(url).query)
+    team_id = (qs.get("teamID") or qs.get("teamId") or [""])[0]
+    if not team_id:
+        return []
     async with sem:
         try:
-            resp = await client.get(url, timeout=15)
+            resp = await client.post(
+                API_URL,
+                params={"action": "teamInfoV11"},
+                data={"teamID": team_id, "page": "managerHistory", "divID": ""},
+                headers={"Referer": url, **HEADERS},
+                timeout=15,
+            )
             resp.raise_for_status()
-            return parse_usssa_team_home(resp.text, url)
+            return parse_usssa_manager_history(resp.json(), url)
         except Exception:
             return []
 
