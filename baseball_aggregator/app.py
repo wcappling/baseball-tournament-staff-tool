@@ -346,6 +346,22 @@ def api_refresh(payload: dict[str, Any] | None = None):
     return services.refresh_sources(sources=sources)
 
 
+@app.post("/api/enrich")
+async def api_enrich(request: Request):
+    """Trigger USSSA team home page enrichment into team_records."""
+    from scripts.stats_worker import enrich_team_records
+    with connect() as conn:
+        team_id = _web_team_id(request)
+        teams_to_enrich = conn.execute(
+            "SELECT id FROM teams WHERE active = 1"
+        ).fetchall()
+    results = {}
+    for row in teams_to_enrich:
+        result = await enrich_team_records(row["id"])
+        results[row["id"]] = result
+    return {"status": "ok", "results": results}
+
+
 @app.post("/api/v1/refresh")
 def api_v1_refresh(session: dict[str, Any] = Depends(_native_session)):
     with connect() as conn:
@@ -578,12 +594,23 @@ def api_admin_delete_team(team_id: str, request: Request):
 
 
 async def _refresh_loop() -> None:
+    import os
+    stats_enrichment = os.environ.get("STATS_ENRICHMENT", "").lower() in ("1", "true", "yes")
     while True:
         with connect() as conn:
             settings = get_settings(conn)
         cadence_seconds = max(300, round(float(settings["refresh_cadence_hours"]) * 3600))
         await asyncio.sleep(cadence_seconds)
         await asyncio.to_thread(services.refresh_sources)
+        if stats_enrichment:
+            try:
+                from scripts.stats_worker import enrich_team_records
+                with connect() as conn:
+                    teams = conn.execute("SELECT id FROM teams WHERE active = 1").fetchall()
+                for row in teams:
+                    await enrich_team_records(row["id"])
+            except Exception as exc:
+                print(f"[stats_enrichment] error: {exc}")
 
 
 async def _backup_loop() -> None:

@@ -32,15 +32,13 @@ from baseball_aggregator.storage import connect, get_available_seasons, upsert_t
 
 
 def _get_all_tournaments_for_team(conn, team_id: str) -> list[dict]:
-    """Return all tournaments rows (with division_teams JSON) for a given team."""
+    """Return all tournament rows with division_teams JSON.
+
+    Queries every tournament that has USSSA data — shortlist membership is not
+    required here because USSSA team records are global facts, not per-tenant.
+    """
     rows = conn.execute(
-        """
-        SELECT t.division_teams
-        FROM tournaments t
-        JOIN shortlist s ON s.tournament_id = t.id
-        WHERE s.team_id = ?
-        """,
-        (team_id,),
+        "SELECT division_teams FROM tournaments WHERE source = 'usssa' AND division_teams != '{}'",
     ).fetchall()
     return [dict(r) for r in rows]
 
