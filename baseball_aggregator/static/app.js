@@ -460,6 +460,8 @@ async function loadSettings() {
   thresholdFilter.value = settings.team_count_threshold;
   radiusFilter.value = settings.radius_miles;
   profileEl.textContent = `${settings.home_label} - ${settings.radius_miles} mile base - ${settings.target_age_division}`;
+  if (analysisAgeFilterEl) analysisAgeFilterEl.value = settings.target_age_division;
+  if (statsAgeFilterEl)    statsAgeFilterEl.value    = settings.target_age_division;
 }
 
 async function loadDivisions() {
@@ -830,6 +832,7 @@ if (tableWrap) {
 const teamStatsCount = document.querySelector("#teamStatsCount");
 const teamStatsNote = document.querySelector("#teamStatsNote");
 const teamStatsRowsEl = document.querySelector("#teamStatsRows");
+const statsAgeFilterEl = document.querySelector("#statsAgeFilter");
 const statsTeamSearchEl = document.querySelector("#statsTeamSearch");
 const statsMinGamesEl = document.querySelector("#statsMinGames");
 const statsApplyFilterEl = document.querySelector("#statsApplyFilter");
@@ -911,7 +914,7 @@ function renderTeamStatsRows(teams) {
 
 async function loadTeamStats() {
   if (!teamStatsRowsEl) return;
-  const age = ageFilter ? ageFilter.value : "";
+  const age = (statsAgeFilterEl ? statsAgeFilterEl.value : "") || (ageFilter ? ageFilter.value : "");
   const params = age ? `?age=${encodeURIComponent(age)}` : "";
   try {
     const data = await api(`/api/team-stats${params}`);
@@ -1109,6 +1112,7 @@ if (mobileAdminBtn)          mobileAdminBtn.addEventListener("click",          (
 const teamAnalysisRowsEl = document.querySelector("#teamAnalysisRows");
 const teamAnalysisNote = document.querySelector("#teamAnalysisNote");
 const teamAnalysisEmpty = document.querySelector("#teamAnalysisEmpty");
+const analysisAgeFilterEl = document.querySelector("#analysisAgeFilter");
 const analysisTeamSearchEl = document.querySelector("#analysisTeamSearch");
 const analysisMinGamesEl = document.querySelector("#analysisMinGames");
 const analysisTournamentFilterEl = document.querySelector("#analysisTournamentFilter");
@@ -1207,7 +1211,7 @@ function renderTeamAnalysisRows(teams) {
 
 async function loadTeamAnalysis() {
   if (!teamAnalysisRowsEl) return;
-  const age = ageFilter ? ageFilter.value : "";
+  const age = (analysisAgeFilterEl ? analysisAgeFilterEl.value : "") || (ageFilter ? ageFilter.value : "");
   const params = age ? `?age=${encodeURIComponent(age)}` : "";
   try {
     const data = await api(`/api/team-analysis${params}`);
@@ -1269,9 +1273,25 @@ if (analysisClearSelectionEl) analysisClearSelectionEl.addEventListener("click",
   renderTeamAnalysisRows(teamAnalysisData);
 });
 
-// Reload data when age filter changes based on active view
+// Inline age selectors in each stats view
+if (analysisAgeFilterEl) {
+  analysisAgeFilterEl.addEventListener("change", () => {
+    teamAnalysisLoaded = false;
+    loadTeamAnalysis();
+  });
+}
+if (statsAgeFilterEl) {
+  statsAgeFilterEl.addEventListener("change", () => {
+    teamStatsData = [];
+    loadTeamStats();
+  });
+}
+
+// Toolbar age filter: sync inline selects so they stay consistent
 if (ageFilter) {
   ageFilter.addEventListener("change", () => {
+    if (analysisAgeFilterEl) analysisAgeFilterEl.value = ageFilter.value;
+    if (statsAgeFilterEl)    statsAgeFilterEl.value    = ageFilter.value;
     if (activeView === "teams-analysis") { teamAnalysisLoaded = false; loadTeamAnalysis(); }
     if (activeView === "teams-stats")    { teamStatsData = []; loadTeamStats(); }
   });
