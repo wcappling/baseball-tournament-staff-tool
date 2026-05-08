@@ -349,17 +349,35 @@ def api_refresh(payload: dict[str, Any] | None = None):
 @app.post("/api/enrich")
 async def api_enrich(request: Request):
     """Trigger USSSA team home page enrichment into team_records."""
-    from scripts.stats_worker import enrich_team_records
+    from baseball_aggregator.collectors.usssa import extract_usssa_team_ids_from_tournaments, fetch_usssa_team_histories
+    from baseball_aggregator.storage import upsert_team_records
+
     with connect() as conn:
-        team_id = _web_team_id(request)
-        teams_to_enrich = conn.execute(
-            "SELECT id FROM teams WHERE active = 1"
+        # Get all USSSA tournaments with team data
+        rows = conn.execute(
+            "SELECT division_teams FROM tournaments WHERE source = 'usssa' AND division_teams != '{}'"
         ).fetchall()
+        tournament_dicts = [dict(r) for r in rows]
+        teams_to_enrich = conn.execute("SELECT id FROM teams WHERE active = 1").fetchall()
+
+    team_id_to_url = extract_usssa_team_ids_from_tournaments(tournament_dicts)
+    urls = list(team_id_to_url.values())
+
+    diag = {"tournaments_with_usssa_data": len(tournament_dicts), "unique_team_urls": len(urls)}
+
+    if not urls:
+        return {"status": "ok", "diag": diag, "results": {}}
+
+    records = await fetch_usssa_team_histories(urls)
+    diag["records_parsed"] = len(records)
+
     results = {}
-    for row in teams_to_enrich:
-        result = await enrich_team_records(row["id"])
-        results[row["id"]] = result
-    return {"status": "ok", "results": results}
+    if records:
+        with connect() as conn:
+            for row in teams_to_enrich:
+                written = upsert_team_records(conn, row["id"], records)
+                results[row["id"]] = {"usssa": written}
+    return {"status": "ok", "diag": diag, "results": results}
 
 
 @app.post("/api/v1/refresh")
