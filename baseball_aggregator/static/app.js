@@ -322,7 +322,7 @@ function renderRows() {
   const declinedItems = [];
   const activeItems = [];
   for (const item of sortRows(tournaments)) {
-    if ((item.shortlist_status || "Watch") === "Declined") {
+    if (item.shortlist_status === "Declined") {
       declinedItems.push(item);
     } else {
       activeItems.push(item);
@@ -358,8 +358,9 @@ function renderTournamentRow(item, container) {
     <td>${renderSelectedAgeDivisions(item)}</td>
     <td>
       <select class="status-select" data-id="${item.id}">
-        ${["Watch", "Interested", "Registered", "Declined"].map((status) => (
-          `<option value="${status}" ${status === (item.shortlist_status || "Watch") ? "selected" : ""}>${status}</option>`
+        <option value="" ${!item.shortlist_status || item.shortlist_status === "Watch" ? "selected" : ""}>Open</option>
+        ${["Interested", "Registered", "Declined"].map((status) => (
+          `<option value="${status}" ${status === item.shortlist_status ? "selected" : ""}>${status}</option>`
         )).join("")}
       </select>
     </td>
@@ -373,7 +374,7 @@ function renderTournamentRow(item, container) {
   detailsTr.innerHTML = `<td colspan="11">${renderTeamRows(item)}</td>`;
   container.appendChild(tr);
   container.appendChild(detailsTr);
-  applyStatusClass(tr, item.shortlist_status || "Watch");
+  applyStatusClass(tr, item.shortlist_status || "");
 }
 
 function bindRowEvents() {
@@ -421,11 +422,12 @@ function bindRowEvents() {
 }
 
 function statusClass(status) {
-  return `status-${String(status || "Watch").toLowerCase()}`;
+  if (!status || status === "Watch") return "status-open";
+  return `status-${String(status).toLowerCase()}`;
 }
 
 function applyStatusClass(row, status) {
-  row.classList.remove("status-watch", "status-interested", "status-registered", "status-declined");
+  row.classList.remove("status-open", "status-interested", "status-registered", "status-declined");
   row.classList.add(statusClass(status));
 }
 
