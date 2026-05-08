@@ -38,7 +38,7 @@ def fetch_tournaments(
     target_age: str | None = None,
     polite_delay_sec: float = 0.1,
     enrich_divisions: bool = True,
-    enrich_team_lists: bool = False,
+    enrich_team_lists: bool = True,
     client: httpx.Client | None = None,
 ) -> list[Tournament]:
     own_client = client is None

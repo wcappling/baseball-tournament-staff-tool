@@ -70,6 +70,21 @@
         </svg>
         <span>Change Log</span>
       </button>
+
+      <button class="nav-item" id="sidebarSettingsBtn" type="button" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Settings</span>
+      </button>
+
+      <button class="nav-item" id="sidebarAdminBtn" type="button" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span>Admin</span>
+      </button>
     </nav>
   </aside>
 
@@ -130,6 +145,19 @@
                 <polyline points="12 6 12 12 16 14"/>
               </svg>
               Change Log
+            </button>
+            <button class="mobile-nav-item" id="mobileSettingsBtn" type="button" role="menuitem" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              Settings
+            </button>
+            <button class="mobile-nav-item" id="mobileAdminBtn" type="button" role="menuitem" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              Admin
             </button>
           </div>
         </div>
@@ -415,9 +443,136 @@
         <div id="recentChangesBanner" hidden></div>
         <div id="changes" class="changes"></div>
       </section>
+
+      <!-- ── Settings view ─────────────────────────────────────────────── -->
+      <section id="settingsView" hidden>
+        <div class="settings-view">
+
+          <!-- Team profile -->
+          <div class="settings-card">
+            <h2>Team Profile</h2>
+            <div class="settings-row settings-row--2col">
+              <label>Display name
+                <input id="settingsDisplayName" type="text" placeholder="Hawks 8U">
+              </label>
+              <label>Team code
+                <input id="settingsSlug" type="text" readonly style="opacity:.6;cursor:default;">
+              </label>
+            </div>
+            <div class="settings-row settings-row--2col">
+              <label>Age division
+                <select id="settingsAgeDivision">
+                  <option>6U</option><option>7U</option><option>8U</option><option>9U</option>
+                  <option>10U</option><option>11U</option><option>12U</option><option>13U</option>
+                  <option>14U</option><option>15U</option><option>16U</option><option>17U</option><option>18U</option>
+                </select>
+              </label>
+              <label>Search radius (miles)
+                <select id="settingsRadius">
+                  <option value="25">25 mi</option>
+                  <option value="50">50 mi</option>
+                  <option value="100">100 mi</option>
+                  <option value="200">200 mi</option>
+                </select>
+              </label>
+            </div>
+            <label>Home city / label
+              <input id="settingsHomeLabel" type="text" placeholder="Sacramento, CA">
+            </label>
+            <div id="settingsProfileMsg" class="settings-msg"></div>
+            <button id="settingsSaveProfileBtn" class="primary" type="button">Save profile</button>
+          </div>
+
+          <!-- Branding -->
+          <div class="settings-card">
+            <h2>Branding</h2>
+            <div class="settings-preview-strip" id="settingsPreviewStrip"></div>
+            <div class="logo-upload-row">
+              <span class="field-label">Team logo <span class="field-hint optional">(optional — extracts brand colors)</span></span>
+              <label class="logo-upload-btn" for="settingsLogoFile">Choose image&hellip;</label>
+              <input type="file" id="settingsLogoFile" accept="image/*" class="logo-file-input">
+              <span id="settingsLogoFileName" class="field-hint"></span>
+            </div>
+            <div class="color-row">
+              <label class="color-label">Primary
+                <input type="color" id="settingsColorPrimary" value="#6750A4">
+              </label>
+              <label class="color-label">Secondary
+                <input type="color" id="settingsColorSecondary" value="#625B71">
+              </label>
+              <label class="color-label">Accent
+                <input type="color" id="settingsColorAccent" value="#7D5260">
+              </label>
+            </div>
+            <div id="settingsBrandMsg" class="settings-msg"></div>
+            <button id="settingsSaveBrandBtn" class="primary" type="button">Save branding</button>
+          </div>
+
+          <!-- Change password -->
+          <div class="settings-card">
+            <h2>Change Password</h2>
+            <label>Current password
+              <input id="settingsCurrentPw" type="password" autocomplete="current-password">
+            </label>
+            <label>New password
+              <input id="settingsNewPw" type="password" autocomplete="new-password">
+              <span class="field-hint">At least 8 characters.</span>
+            </label>
+            <label>Confirm new password
+              <input id="settingsConfirmPw" type="password" autocomplete="new-password">
+            </label>
+            <div id="settingsPwMsg" class="settings-msg"></div>
+            <button id="settingsSavePwBtn" class="primary" type="button">Update password</button>
+          </div>
+
+          <!-- Danger zone -->
+          <div class="settings-card">
+            <h2 class="danger">Danger Zone</h2>
+            <p class="subtle">Deleting your team is permanent and cannot be undone. All tournament data, notes, and settings will be removed.</p>
+            <div class="danger-confirm" id="settingsDeleteConfirm" hidden>
+              <label>Type your team code to confirm
+                <input id="settingsDeleteSlugConfirm" type="text" placeholder="team-code" autocomplete="off">
+              </label>
+              <div id="settingsDeleteMsg" class="settings-msg"></div>
+              <div style="display:flex;gap:8px;">
+                <button id="settingsDeleteConfirmBtn" type="button" style="background:var(--warn);color:#fff;border-color:var(--warn);">Delete team permanently</button>
+                <button id="settingsDeleteCancelBtn" type="button">Cancel</button>
+              </div>
+            </div>
+            <button id="settingsDeleteBtn" type="button" style="background:transparent;color:var(--warn);border-color:var(--warn);">Delete this team&hellip;</button>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── Admin view ─────────────────────────────────────────────────── -->
+      <section id="adminView" hidden>
+        <div class="admin-view">
+          <div class="section-header">
+            <h2 class="section-title">Admin — Team Management</h2>
+            <p class="subtle">Manage all teams registered in this instance.</p>
+          </div>
+          <button id="adminRefreshBtn" type="button" class="primary" style="margin-bottom:16px;">Refresh</button>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Team code</th>
+                  <th>Display name</th>
+                  <th>Created</th>
+                  <th>Status</th>
+                  <th class="col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adminTeamRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
+  <script src="/static/utils.js?v=20260508"></script>
   <script src="/static/app.js?v=20260507-redesign-v3"></script>
 </body>
 </html>

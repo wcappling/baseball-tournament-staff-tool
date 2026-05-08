@@ -254,6 +254,31 @@ def update_team_settings(conn: sqlite3.Connection, team_id: str, payload: dict[s
     return current
 
 
+def update_team_password(conn: sqlite3.Connection, team_id: str, new_password: str) -> None:
+    now = datetime.now(UTC).isoformat()
+    conn.execute(
+        "UPDATE teams SET password_hash = ?, updated_at = ? WHERE id = ?",
+        (_hash_password(new_password), now, team_id),
+    )
+    conn.commit()
+
+
+def set_team_active(conn: sqlite3.Connection, team_id: str, active: bool) -> None:
+    now = datetime.now(UTC).isoformat()
+    conn.execute(
+        "UPDATE teams SET active = ?, updated_at = ? WHERE id = ?",
+        (1 if active else 0, now, team_id),
+    )
+    conn.commit()
+
+
+def delete_team(conn: sqlite3.Connection, team_id: str) -> None:
+    if team_id == "default":
+        raise ValueError("Cannot delete the default team.")
+    conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
+    conn.commit()
+
+
 def verify_team_password(conn: sqlite3.Connection, slug: str, password: str) -> dict[str, Any] | None:
     team = get_team_by_slug(conn, slug)
     if not team or not team.get("password_hash"):

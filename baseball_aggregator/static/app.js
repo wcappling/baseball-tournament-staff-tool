@@ -578,16 +578,21 @@ function applyTeamBrand(settings) {
   if (teamNameEl) {
     teamNameEl.textContent = settings.team_display_name || "Tournament Staff Tool";
   }
-  if (!teamLogoEl || !teamLogoFrame) return;
-  if (settings.logo_url) {
-    teamLogoEl.src = settings.logo_url;
-    teamLogoEl.alt = `${settings.team_display_name || "Team"} logo`;
-    teamLogoFrame.hidden = false;
-  } else {
-    teamLogoEl.removeAttribute("src");
-    teamLogoEl.alt = "";
-    teamLogoFrame.hidden = true;
+  if (teamLogoEl && teamLogoFrame) {
+    if (settings.logo_url) {
+      teamLogoEl.src = settings.logo_url;
+      teamLogoEl.alt = `${settings.team_display_name || "Team"} logo`;
+      teamLogoFrame.hidden = false;
+    } else {
+      teamLogoEl.removeAttribute("src");
+      teamLogoEl.alt = "";
+      teamLogoFrame.hidden = true;
+    }
   }
+
+  const isAdmin = settings.team_id === "default";
+  [sidebarSettingsBtn, mobileSettingsBtn].forEach((b) => { if (b) b.hidden = isAdmin; });
+  [sidebarAdminBtn,    mobileAdminBtn   ].forEach((b) => { if (b) b.hidden = !isAdmin; });
 }
 
 function teamThemeTokens(settings, mode) {
@@ -992,6 +997,8 @@ const upcomingView         = document.querySelector("#upcomingView");
 const teamsAnalysisView    = document.querySelector("#teamsAnalysisView");
 const teamsStatsView       = document.querySelector("#teamsStatsView");
 const changelogView        = document.querySelector("#changelogView");
+const settingsView         = document.querySelector("#settingsView");
+const adminView            = document.querySelector("#adminView");
 const toolbarEl            = document.querySelector(".toolbar");
 
 const sidebarTournamentsBtn    = document.querySelector("#sidebarTournamentsBtn");
@@ -1000,11 +1007,15 @@ const sidebarTeamsBtn          = document.querySelector("#sidebarTeamsBtn");
 const sidebarTeamsAnalysisBtn  = document.querySelector("#sidebarTeamsAnalysisBtn");
 const sidebarTeamsStatsBtn     = document.querySelector("#sidebarTeamsStatsBtn");
 const sidebarChangelogBtn      = document.querySelector("#sidebarChangelogBtn");
+const sidebarSettingsBtn       = document.querySelector("#sidebarSettingsBtn");
+const sidebarAdminBtn          = document.querySelector("#sidebarAdminBtn");
 const mobileTournamentsBtn     = document.querySelector("#mobileTournamentsBtn");
 const mobileUpcomingBtn        = document.querySelector("#mobileUpcomingBtn");
 const mobileTeamsBtn           = document.querySelector("#mobileTeamsBtn");
 const mobileTeamsStatsBtn      = document.querySelector("#mobileTeamsStatsBtn");
 const mobileChangelogBtn       = document.querySelector("#mobileChangelogBtn");
+const mobileSettingsBtn        = document.querySelector("#mobileSettingsBtn");
+const mobileAdminBtn           = document.querySelector("#mobileAdminBtn");
 
 let activeView = "tournaments";
 let teamAnalysisLoaded = false;
@@ -1016,6 +1027,8 @@ const ALL_VIEWS = {
   "teams-analysis": teamsAnalysisView,
   "teams-stats":    teamsStatsView,
   "changelog":      changelogView,
+  "settings":       settingsView,
+  "admin":          adminView,
 };
 
 const ALL_NAV_BTNS = {
@@ -1024,6 +1037,8 @@ const ALL_NAV_BTNS = {
   "teams-analysis": [sidebarTeamsAnalysisBtn, sidebarTeamsBtn, mobileTeamsBtn],
   "teams-stats":    [sidebarTeamsStatsBtn, mobileTeamsStatsBtn],
   "changelog":      [sidebarChangelogBtn, mobileChangelogBtn],
+  "settings":       [sidebarSettingsBtn, mobileSettingsBtn],
+  "admin":          [sidebarAdminBtn, mobileAdminBtn],
 };
 
 const upcomingRowsEl = document.querySelector("#upcomingRows");
@@ -1067,6 +1082,8 @@ function switchView(view) {
   if (view === "teams-analysis" && !teamAnalysisLoaded) loadTeamAnalysis();
   if (view === "teams-stats"    && teamStatsData.length === 0) loadTeamStats();
   if (view === "changelog"      && !changesLoaded) loadChanges();
+  if (view === "settings")       loadSettingsView();
+  if (view === "admin")          loadAdminView();
   if (mobileNav && isMobileLayout()) mobileNav.hidden = true;
 }
 
@@ -1081,6 +1098,10 @@ if (mobileUpcomingBtn)       mobileUpcomingBtn.addEventListener("click",       (
 if (mobileTeamsBtn)          mobileTeamsBtn.addEventListener("click",          () => switchView("teams-analysis"));
 if (mobileTeamsStatsBtn)     mobileTeamsStatsBtn.addEventListener("click",     () => switchView("teams-stats"));
 if (mobileChangelogBtn)      mobileChangelogBtn.addEventListener("click",      () => switchView("changelog"));
+if (sidebarSettingsBtn)      sidebarSettingsBtn.addEventListener("click",      () => switchView("settings"));
+if (sidebarAdminBtn)         sidebarAdminBtn.addEventListener("click",         () => switchView("admin"));
+if (mobileSettingsBtn)       mobileSettingsBtn.addEventListener("click",       () => switchView("settings"));
+if (mobileAdminBtn)          mobileAdminBtn.addEventListener("click",          () => switchView("admin"));
 
 
 // ── Team Analysis Page ───────────────────────────────────────────────────────
@@ -1255,6 +1276,308 @@ if (ageFilter) {
     if (activeView === "teams-stats")    { teamStatsData = []; loadTeamStats(); }
   });
 }
+
+// ── Settings view ────────────────────────────────────────────────────────────
+
+function _settingsShowMsg(elId, text, type) {
+  const el = document.querySelector(`#${elId}`);
+  if (!el) return;
+  el.textContent = text;
+  el.className = `settings-msg ${type} visible`;
+  setTimeout(() => el.classList.remove("visible"), 4000);
+}
+
+function _settingsPixelHue(r, g, b) {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (d === 0) return 0;
+  let h = max === r ? ((g - b) / d % 6) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return Math.round(h * 60 + 360) % 360;
+}
+
+function _settingsExtractColors(imageData) {
+  const { data } = imageData;
+  const buckets = {};
+  for (let i = 0; i < data.length; i += 16) {
+    const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+    if (a < 128) continue;
+    const brightness = (r + g + b) / 3;
+    const maxC = Math.max(r, g, b);
+    const sat = maxC === 0 ? 0 : (maxC - Math.min(r, g, b)) / maxC;
+    if (brightness > 230 || brightness < 20 || sat < 0.15) continue;
+    const key = Math.round(_settingsPixelHue(r, g, b) / 30) * 30;
+    if (!buckets[key]) buckets[key] = { count: 0, r: 0, g: 0, b: 0 };
+    buckets[key].count++;
+    buckets[key].r += r; buckets[key].g += g; buckets[key].b += b;
+  }
+  return Object.values(buckets)
+    .filter((b) => b.count >= 5)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3)
+    .map((b) => rgbToHex({ r: Math.round(b.r / b.count), g: Math.round(b.g / b.count), b: Math.round(b.b / b.count) }));
+}
+
+function _settingsUpdatePreview() {
+  const cp = document.querySelector("#settingsColorPrimary");
+  const cs = document.querySelector("#settingsColorSecondary");
+  const ca = document.querySelector("#settingsColorAccent");
+  const strip = document.querySelector("#settingsPreviewStrip");
+  if (!cp || !cs || !ca || !strip) return;
+  strip.style.background = `linear-gradient(90deg, ${cp.value}, ${cs.value}, ${ca.value})`;
+}
+
+function loadSettingsView() {
+  const s = currentTeamSettings;
+  if (!s) return;
+
+  const dn = document.querySelector("#settingsDisplayName");
+  const sl = document.querySelector("#settingsSlug");
+  const age = document.querySelector("#settingsAgeDivision");
+  const radius = document.querySelector("#settingsRadius");
+  const home = document.querySelector("#settingsHomeLabel");
+  const cp = document.querySelector("#settingsColorPrimary");
+  const cs = document.querySelector("#settingsColorSecondary");
+  const ca = document.querySelector("#settingsColorAccent");
+
+  if (dn)     dn.value     = s.team_display_name || "";
+  if (sl)     sl.value     = s.team_slug || "";
+  if (age)    age.value    = s.target_age_division || "8U";
+  if (radius) radius.value = s.radius_miles || "200";
+  if (home)   home.value   = s.home_label || "";
+  if (cp)     cp.value     = s.brand_primary   || "#6750A4";
+  if (cs)     cs.value     = s.brand_secondary || "#625B71";
+  if (ca)     ca.value     = s.brand_accent    || "#7D5260";
+  _settingsUpdatePreview();
+}
+
+// Settings — save profile
+const settingsSaveProfileBtn = document.querySelector("#settingsSaveProfileBtn");
+if (settingsSaveProfileBtn) {
+  settingsSaveProfileBtn.addEventListener("click", async () => {
+    const payload = {
+      team_display_name: document.querySelector("#settingsDisplayName")?.value.trim() || "",
+      target_age_division: document.querySelector("#settingsAgeDivision")?.value || "",
+      radius_miles: document.querySelector("#settingsRadius")?.value || "",
+      home_label: document.querySelector("#settingsHomeLabel")?.value.trim() || "",
+    };
+    try {
+      await api("/api/settings", { method: "PUT", body: JSON.stringify(payload) });
+      Object.assign(currentTeamSettings, payload);
+      applyTeamBrand(currentTeamSettings);
+      _settingsShowMsg("settingsProfileMsg", "Profile saved.", "success");
+    } catch {
+      _settingsShowMsg("settingsProfileMsg", "Save failed.", "error");
+    }
+  });
+}
+
+// Settings — logo upload & color extraction
+const settingsLogoFileEl = document.querySelector("#settingsLogoFile");
+if (settingsLogoFileEl) {
+  settingsLogoFileEl.addEventListener("change", () => {
+    const file = settingsLogoFileEl.files[0];
+    if (!file) return;
+    const nameEl = document.querySelector("#settingsLogoFileName");
+    if (nameEl) nameEl.textContent = file.name;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 128;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        const colors = _settingsExtractColors(canvas.getContext("2d").getImageData(0, 0, w, h));
+        const [c0, c1, c2] = colors;
+        const cp = document.querySelector("#settingsColorPrimary");
+        const cs = document.querySelector("#settingsColorSecondary");
+        const ca = document.querySelector("#settingsColorAccent");
+        if (c0 && cp) cp.value = c0;
+        if (c1 && cs) cs.value = c1;
+        if (c2 && ca) ca.value = c2;
+        else if (c0 && ca) ca.value = c0;
+        _settingsUpdatePreview();
+        if (currentTeamSettings) {
+          currentTeamSettings._pendingLogoUrl = dataUrl.length < 200_000 ? dataUrl : "";
+        }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+[
+  document.querySelector("#settingsColorPrimary"),
+  document.querySelector("#settingsColorSecondary"),
+  document.querySelector("#settingsColorAccent"),
+].forEach((el) => { if (el) el.addEventListener("input", _settingsUpdatePreview); });
+
+// Settings — save branding
+const settingsSaveBrandBtn = document.querySelector("#settingsSaveBrandBtn");
+if (settingsSaveBrandBtn) {
+  settingsSaveBrandBtn.addEventListener("click", async () => {
+    const cp = document.querySelector("#settingsColorPrimary")?.value || "#6750A4";
+    const cs = document.querySelector("#settingsColorSecondary")?.value || "#625B71";
+    const ca = document.querySelector("#settingsColorAccent")?.value || "#7D5260";
+    const payload = { brand_primary: cp, brand_secondary: cs, brand_accent: ca };
+    const pending = currentTeamSettings?._pendingLogoUrl;
+    if (pending !== undefined) payload.logo_url = pending;
+    try {
+      await api("/api/settings", { method: "PUT", body: JSON.stringify(payload) });
+      Object.assign(currentTeamSettings, { brand_primary: cp, brand_secondary: cs, brand_accent: ca });
+      if (pending !== undefined) {
+        currentTeamSettings.logo_url = pending;
+        delete currentTeamSettings._pendingLogoUrl;
+      }
+      applyTeamBrand(currentTeamSettings);
+      _settingsShowMsg("settingsBrandMsg", "Branding saved.", "success");
+    } catch {
+      _settingsShowMsg("settingsBrandMsg", "Save failed.", "error");
+    }
+  });
+}
+
+// Settings — change password
+const settingsSavePwBtn = document.querySelector("#settingsSavePwBtn");
+if (settingsSavePwBtn) {
+  settingsSavePwBtn.addEventListener("click", async () => {
+    const current = document.querySelector("#settingsCurrentPw")?.value || "";
+    const next    = document.querySelector("#settingsNewPw")?.value || "";
+    const confirm = document.querySelector("#settingsConfirmPw")?.value || "";
+    if (next !== confirm) {
+      _settingsShowMsg("settingsPwMsg", "New passwords do not match.", "error");
+      return;
+    }
+    if (next.length < 8) {
+      _settingsShowMsg("settingsPwMsg", "Password must be at least 8 characters.", "error");
+      return;
+    }
+    try {
+      await api("/api/password", {
+        method: "POST",
+        body: JSON.stringify({ current_password: current, new_password: next, confirm_password: confirm }),
+      });
+      ["#settingsCurrentPw", "#settingsNewPw", "#settingsConfirmPw"].forEach((sel) => {
+        const el = document.querySelector(sel);
+        if (el) el.value = "";
+      });
+      _settingsShowMsg("settingsPwMsg", "Password updated.", "success");
+    } catch (err) {
+      _settingsShowMsg("settingsPwMsg", err.message || "Update failed.", "error");
+    }
+  });
+}
+
+// Settings — delete team
+const settingsDeleteBtn        = document.querySelector("#settingsDeleteBtn");
+const settingsDeleteConfirmDiv = document.querySelector("#settingsDeleteConfirm");
+const settingsDeleteCancelBtn  = document.querySelector("#settingsDeleteCancelBtn");
+const settingsDeleteConfirmBtn = document.querySelector("#settingsDeleteConfirmBtn");
+
+if (settingsDeleteBtn) {
+  settingsDeleteBtn.addEventListener("click", () => {
+    if (settingsDeleteBtn) settingsDeleteBtn.hidden = true;
+    if (settingsDeleteConfirmDiv) settingsDeleteConfirmDiv.hidden = false;
+  });
+}
+if (settingsDeleteCancelBtn) {
+  settingsDeleteCancelBtn.addEventListener("click", () => {
+    if (settingsDeleteBtn) settingsDeleteBtn.hidden = false;
+    if (settingsDeleteConfirmDiv) settingsDeleteConfirmDiv.hidden = true;
+    const inp = document.querySelector("#settingsDeleteSlugConfirm");
+    if (inp) inp.value = "";
+  });
+}
+if (settingsDeleteConfirmBtn) {
+  settingsDeleteConfirmBtn.addEventListener("click", async () => {
+    const typed = document.querySelector("#settingsDeleteSlugConfirm")?.value.trim() || "";
+    const slug  = currentTeamSettings?.team_slug || "";
+    if (typed !== slug) {
+      _settingsShowMsg("settingsDeleteMsg", "Team code does not match.", "error");
+      return;
+    }
+    try {
+      await api("/api/team", { method: "DELETE" });
+      window.location.href = "/login";
+    } catch (err) {
+      _settingsShowMsg("settingsDeleteMsg", err.message || "Delete failed.", "error");
+    }
+  });
+}
+
+// ── Admin view ────────────────────────────────────────────────────────────────
+
+async function loadAdminView() {
+  const tbody = document.querySelector("#adminTeamRows");
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" class="subtle" style="padding:16px;">Loading…</td></tr>';
+  try {
+    const teams = await api("/api/admin/teams");
+    tbody.innerHTML = "";
+    if (!teams.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="subtle" style="padding:16px;">No teams found.</td></tr>';
+      return;
+    }
+    for (const team of teams) {
+      tbody.appendChild(_adminTeamRow(team));
+    }
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="5" class="subtle" style="padding:16px;">Failed to load teams.</td></tr>';
+  }
+}
+
+function _adminTeamRow(team) {
+  const tr = document.createElement("tr");
+  const created = team.created_at ? team.created_at.slice(0, 10) : "—";
+  const isDefault = team.slug === "default";
+  tr.innerHTML = `
+    <td>${escapeHtml(team.slug)}</td>
+    <td>${escapeHtml(team.display_name || "")}</td>
+    <td>${created}</td>
+    <td>${team.active ? '<span class="admin-badge--active">Active</span>' : '<span class="admin-badge--inactive">Inactive</span>'}</td>
+    <td class="col-actions">
+      ${isDefault ? "" : `
+        <button class="admin-toggle-btn" data-id="${team.id}" data-active="${team.active ? "1" : "0"}" type="button">
+          ${team.active ? "Disable" : "Enable"}
+        </button>
+        <button class="admin-delete-btn" data-id="${team.id}" data-slug="${escapeHtml(team.slug)}" type="button"
+          style="color:var(--warn);border-color:var(--warn);background:transparent;">Delete</button>
+      `}
+    </td>`;
+  return tr;
+}
+
+const adminTeamRowsEl = document.querySelector("#adminTeamRows");
+if (adminTeamRowsEl) {
+  adminTeamRowsEl.addEventListener("click", async (e) => {
+    const toggleBtn = e.target.closest(".admin-toggle-btn");
+    const deleteBtn = e.target.closest(".admin-delete-btn");
+
+    if (toggleBtn) {
+      const id = toggleBtn.dataset.id;
+      const active = toggleBtn.dataset.active !== "1";
+      try {
+        await api(`/api/admin/teams/${id}/active`, { method: "PUT", body: JSON.stringify({ active }) });
+        loadAdminView();
+      } catch { /* ignore */ }
+    }
+
+    if (deleteBtn) {
+      const slug = deleteBtn.dataset.slug;
+      if (!confirm(`Delete team "${slug}"? This cannot be undone.`)) return;
+      try {
+        await api(`/api/admin/teams/${deleteBtn.dataset.id}`, { method: "DELETE" });
+        loadAdminView();
+      } catch { /* ignore */ }
+    }
+  });
+}
+
+const adminRefreshBtn = document.querySelector("#adminRefreshBtn");
+if (adminRefreshBtn) adminRefreshBtn.addEventListener("click", loadAdminView);
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
