@@ -47,7 +47,10 @@ def get_allowed_origins() -> list[str]:
     origins = ["http://localhost", "http://127.0.0.1", "http://localhost:8000"]
     railway_url = os.getenv("RAILWAY_STATIC_URL")
     if railway_url:
-        origins.append(railway_url.rstrip("/"))
+        url = railway_url.rstrip("/")
+        if not url.startswith("http"):
+            url = f"https://{url}"
+        origins.append(url)
     extra = os.getenv("ALLOWED_ORIGINS", "")
     if extra:
         origins.extend(u.strip() for u in extra.split(",") if u.strip())

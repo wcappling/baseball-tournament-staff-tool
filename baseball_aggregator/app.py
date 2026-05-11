@@ -375,7 +375,8 @@ def api_v1_divisions(
 
 @app.post("/api/refresh")
 def api_refresh(request: Request, payload: dict[str, Any] | None = None):
-    _require_admin(request)
+    if not get_web_team_id(request.cookies.get(COOKIE_NAME)):
+        raise HTTPException(status_code=403, detail={"code": "auth_required", "message": "Authentication required."})
     sources = payload.get("sources") if payload else None
     return services.refresh_sources(sources=sources)
 
