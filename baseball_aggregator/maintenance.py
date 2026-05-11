@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +20,10 @@ def create_sqlite_backup(db_path: Path | None = None, backup_dir: Path | None = 
 
     with sqlite3.connect(source_path) as source, sqlite3.connect(destination) as target:
         source.backup(target)
+    try:
+        os.chmod(destination, 0o600)
+    except OSError:
+        pass
     return destination
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 from pathlib import Path
 
 from baseball_aggregator import storage
@@ -13,6 +14,8 @@ def main(argv: list[str] | None = None) -> int:
         return upsert_team(args)
     if args.command == "list":
         return list_configured_teams(args)
+    if args.command == "deactivate":
+        return deactivate_team(args)
     parser.print_help()
     return 1
 
@@ -40,6 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_parser = subparsers.add_parser("list", help="List configured teams without secrets.")
     add_db_path(list_parser)
+
+    deactivate = subparsers.add_parser("deactivate", help="Deactivate a team login (revokes web access).")
+    add_db_path(deactivate)
+    deactivate.add_argument("--slug", required=True, help="Team slug to deactivate.")
     return parser
 
 
@@ -82,6 +89,22 @@ def list_configured_teams(args: argparse.Namespace) -> int:
     for row in rows:
         active = "active" if row["active"] else "inactive"
         print(f"{row['slug']}\t{row['display_name']}\t{active}")
+    return 0
+
+
+def deactivate_team(args: argparse.Namespace) -> int:
+    slug = args.slug.lower().strip()
+    with storage.connect(args.db_path) as conn:
+        team = storage.get_team_by_slug(conn, slug)
+        if team is None:
+            print(f"No active team found with slug {slug!r}.")
+            return 1
+        conn.execute(
+            "UPDATE teams SET active = 0, updated_at = ? WHERE id = ?",
+            (datetime.now(timezone.utc).isoformat(), team["id"]),
+        )
+        conn.commit()
+    print(f"Team {slug!r} deactivated. Existing sessions will be rejected on next request.")
     return 0
 
 
