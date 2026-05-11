@@ -381,7 +381,7 @@ function renderTournamentRow(item, container) {
 function bindRowEvents() {
   document.querySelectorAll(".teams-toggle").forEach((button) => {
     button.addEventListener("click", async () => {
-      const target = document.querySelector(`#${button.dataset.target}`);
+      const target = button.closest("tr").nextElementSibling;
       const item = tournaments.find((tournament) => String(tournament.id) === button.dataset.id);
       if (!item) return;
 
