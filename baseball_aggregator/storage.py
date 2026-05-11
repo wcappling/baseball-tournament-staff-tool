@@ -502,12 +502,11 @@ def search_tournaments(
             for row in api_rows
             if any(_has_exact_age(row["age_divisions"], division) for division in selected_divisions)
         ]
-    if radius_miles < settings["radius_miles"]:
-        api_rows = [
-            row
-            for row in api_rows
-            if row["distance_miles"] is not None and row["distance_miles"] <= radius_miles
-        ]
+    api_rows = [
+        row
+        for row in api_rows
+        if row["distance_miles"] is None or row["distance_miles"] <= radius_miles
+    ]
     return api_rows
 
 
