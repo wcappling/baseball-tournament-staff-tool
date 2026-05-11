@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import functools
 import math
 import re
 
 HUNTSVILLE = (34.7304, -86.5861)
 
+# Fast-path lookup for the most common tournament cities — avoids loading pgeocode
+# for the majority of lookups. pgeocode handles anything not in this dict.
 CITY_COORDS = {
     ("Albertville", "AL"): (34.2676, -86.2089),
     ("Athens", "AL"): (34.8029, -86.9717),
@@ -46,13 +49,53 @@ CITY_COORDS = {
 }
 
 
-def estimate_distance_miles(location: str | None) -> float | None:
+@functools.lru_cache(maxsize=1)
+def _pgeocode_us():
+    """Load the GeoNames US postal code dataset once per process."""
+    import pgeocode  # noqa: PLC0415 — deferred to avoid startup cost when not needed
+    return pgeocode.Nominatim("us")
+
+
+def _city_state_to_coords(city: str, state: str) -> tuple[float, float] | None:
+    """Look up coordinates for a US city/state using the bundled GeoNames dataset."""
+    try:
+        df = _pgeocode_us()._data
+    except Exception:
+        return None
+    mask = (df["place_name"].str.lower() == city.lower()) & (
+        df["state_code"].str.upper() == state.upper()
+    )
+    matches = df[mask]
+    if matches.empty:
+        return None
+    row = matches.iloc[0]
+    lat, lon = row["latitude"], row["longitude"]
+    if math.isnan(lat) or math.isnan(lon):
+        return None
+    return (float(lat), float(lon))
+
+
+def resolve_home_coords(home_label: str) -> tuple[float, float]:
+    """Resolve a 'City, ST' home label to (lat, lon), falling back to Huntsville."""
+    candidates = _location_candidates(home_label)
+    if candidates:
+        city, state = candidates[0]
+        coords = CITY_COORDS.get((city, state)) or _city_state_to_coords(city, state)
+        if coords:
+            return coords
+    return HUNTSVILLE
+
+
+def estimate_distance_miles(
+    location: str | None,
+    home: tuple[float, float] = HUNTSVILLE,
+) -> float | None:
     candidates = _location_candidates(location)
     distances: list[float] = []
     for city, state in candidates:
-        coords = CITY_COORDS.get((city, state))
+        coords = CITY_COORDS.get((city, state)) or _city_state_to_coords(city, state)
         if coords:
-            distances.append(_haversine(HUNTSVILLE, coords))
+            distances.append(_haversine(home, coords))
     return round(min(distances), 1) if distances else None
 
 

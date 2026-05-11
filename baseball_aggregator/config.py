@@ -42,6 +42,21 @@ def hosted_jobs_enabled() -> bool:
     return is_hosted_mode()
 
 
+def get_allowed_origins() -> list[str]:
+    """CORS allowed origins: always localhost; Railway URL auto-detected; explicit overrides via ALLOWED_ORIGINS."""
+    origins = ["http://localhost", "http://127.0.0.1", "http://localhost:8000"]
+    railway_url = os.getenv("RAILWAY_STATIC_URL")
+    if railway_url:
+        url = railway_url.rstrip("/")
+        if not url.startswith("http"):
+            url = f"https://{url}"
+        origins.append(url)
+    extra = os.getenv("ALLOWED_ORIGINS", "")
+    if extra:
+        origins.extend(u.strip() for u in extra.split(",") if u.strip())
+    return origins
+
+
 def require_hosted_config() -> None:
     if not is_hosted_mode():
         return
