@@ -190,6 +190,7 @@ def get_settings(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 def update_settings(conn: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, Any]:
+    init_db(conn)
     return update_team_settings(conn, get_default_team(conn)["id"], payload)
 
 
