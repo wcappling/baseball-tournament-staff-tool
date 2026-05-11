@@ -26,7 +26,7 @@ from baseball_aggregator.auth import (
     login_page,
 )
 from baseball_aggregator.collectors.registry import list_collectors
-from baseball_aggregator.config import get_backup_dir, hosted_jobs_enabled, is_hosted_mode, require_hosted_config
+from baseball_aggregator.config import get_allowed_origins, get_backup_dir, hosted_jobs_enabled, is_hosted_mode, require_hosted_config
 from baseball_aggregator.maintenance import create_sqlite_backup, prune_backups
 from baseball_aggregator import services, stats
 from baseball_aggregator.storage import (
@@ -138,7 +138,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(PasswordAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost", "http://127.0.0.1"],
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
@@ -283,6 +283,7 @@ def api_tournaments(
     radius_miles: int | None = None,
     start_on_or_after: str | None = None,
     end_on_or_before: str | None = None,
+    single_day: bool = False,
     q: str | None = None,
 ):
     with connect() as conn:
@@ -296,6 +297,7 @@ def api_tournaments(
                 "radius_miles": radius_miles,
                 "start_on_or_after": start_on_or_after,
                 "end_on_or_before": end_on_or_before,
+                "single_day": single_day,
                 "q": q,
             },
             team_id=_web_team_id(request),
@@ -311,6 +313,7 @@ def api_v1_tournaments(
     radius_miles: int | None = None,
     start_on_or_after: str | None = None,
     end_on_or_before: str | None = None,
+    single_day: bool = False,
     q: str | None = None,
     session: dict[str, Any] = Depends(_native_session),
 ):
@@ -325,6 +328,7 @@ def api_v1_tournaments(
                 "radius_miles": radius_miles,
                 "start_on_or_after": start_on_or_after,
                 "end_on_or_before": end_on_or_before,
+                "single_day": single_day,
                 "q": q,
             },
             team_id=session["team_id"],
@@ -370,7 +374,8 @@ def api_v1_divisions(
 
 
 @app.post("/api/refresh")
-def api_refresh(payload: dict[str, Any] | None = None):
+def api_refresh(request: Request, payload: dict[str, Any] | None = None):
+    _require_admin(request)
     sources = payload.get("sources") if payload else None
     return services.refresh_sources(sources=sources)
 
@@ -378,6 +383,7 @@ def api_refresh(payload: dict[str, Any] | None = None):
 @app.post("/api/enrich")
 async def api_enrich(request: Request):
     """Trigger USSSA team home page enrichment into team_records."""
+    _require_admin(request)
     from baseball_aggregator.collectors.usssa import extract_usssa_team_ids_from_tournaments, fetch_usssa_team_histories
     from baseball_aggregator.storage import upsert_team_records
 

@@ -530,6 +530,7 @@ details[open] .setup-summary::after { content: " ▾"; }
 
 .mobile-nav-item.active {
   color: var(--accent);
+  background: var(--panel);
   background: color-mix(in srgb, var(--accent) 10%, var(--panel));
   font-weight: 600;
 }
@@ -605,6 +606,18 @@ main {
 .toolbar > button#applyFilters {
   flex: 0 0 auto;
   align-self: flex-end;
+}
+
+.filter-checkbox {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  white-space: nowrap;
+  align-self: flex-end;
+  padding-bottom: 2px;
+  cursor: pointer;
 }
 
 .toolbar[hidden] {
@@ -840,6 +853,7 @@ td {
 }
 
 .pill.good {
+  background: var(--pill-good);
   background: color-mix(in srgb, var(--brand-primary) 68%, var(--pill-good));
   color: var(--brand-on-primary);
 }
@@ -858,14 +872,17 @@ tr.status-open td {
 }
 
 tr.status-interested td {
+  background: var(--status-interested);
   background: color-mix(in srgb, var(--brand-secondary) 12%, var(--status-interested));
 }
 
 tr.status-registered td {
+  background: var(--status-registered);
   background: color-mix(in srgb, var(--brand-primary) 14%, var(--status-registered));
 }
 
 tr.status-declined td {
+  background: var(--status-declined);
   background: color-mix(in srgb, var(--brand-secondary) 10%, var(--status-declined));
 }
 
@@ -1478,6 +1495,7 @@ textarea {
 }
 
 .team-row-selected td {
+  background: var(--surface);
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 }
 
@@ -1534,6 +1552,7 @@ textarea {
 .recent-changes-banner {
   margin: 0 0 16px;
   padding: 14px 16px;
+  background: var(--surface);
   background: color-mix(in srgb, #f59e0b 12%, var(--surface));
   border: 1px solid #f59e0b;
   border-radius: 10px;
@@ -1551,6 +1570,7 @@ textarea {
 }
 
 :root[data-theme="dark"] .recent-changes-banner {
+  background: var(--surface);
   background: color-mix(in srgb, #f59e0b 10%, var(--surface));
   border-color: #b45309;
 }

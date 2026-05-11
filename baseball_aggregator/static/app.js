@@ -11,6 +11,7 @@ const radiusFilter = document.querySelector("#radiusFilter");
 const searchFilter = document.querySelector("#searchFilter");
 const startDateFilter = document.querySelector("#startDateFilter");
 const endDateFilter = document.querySelector("#endDateFilter");
+const singleDayFilter = document.querySelector("#singleDayFilter");
 const profileEl = document.querySelector("#profile");
 const teamNameEl = document.querySelector("#teamName");
 const teamLogoEl = document.querySelector("#teamLogo");
@@ -719,6 +720,7 @@ async function loadTournaments() {
   if (searchFilter.value) params.set("q", searchFilter.value);
   if (startDateFilter.value) params.set("start_on_or_after", startDateFilter.value);
   if (endDateFilter.value) params.set("end_on_or_before", endDateFilter.value);
+  if (singleDayFilter?.checked) params.set("single_day", "true");
   tournaments = await api(`/api/tournaments?${params.toString()}`);
   renderRows();
 }
@@ -859,8 +861,8 @@ const statsCompareBtnEl = document.querySelector("#statsCompareBtn");
 const statsClearSelectionEl = document.querySelector("#statsClearSelection");
 
 let teamStatsData = [];
-let teamStatsSortKey = "win_pct";
-let teamStatsSortDir = -1;
+let teamStatsSortKey = "team_name";
+let teamStatsSortDir = 1;
 let statsSelectedTeams = new Set();
 let statsCompareMode = false;
 
@@ -1144,8 +1146,8 @@ const analysisCompareBtnEl = document.querySelector("#analysisCompareBtn");
 const analysisClearSelectionEl = document.querySelector("#analysisClearSelection");
 
 let teamAnalysisData = [];
-let teamAnalysisSortKey = "win_pct";
-let teamAnalysisSortDir = -1;
+let teamAnalysisSortKey = "team_name";
+let teamAnalysisSortDir = 1;
 let analysisSelectedTeams = new Set();
 let analysisCompareMode = false;
 

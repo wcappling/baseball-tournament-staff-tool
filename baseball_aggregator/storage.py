@@ -14,10 +14,24 @@ from pathlib import Path
 from typing import Any
 
 from baseball_aggregator.config import get_db_path
-from baseball_aggregator.distance import estimate_distance_miles
+from baseball_aggregator.distance import HUNTSVILLE, estimate_distance_miles, resolve_home_coords
 from baseball_aggregator.models import DEFAULT_SETTINGS, Tournament
 
 log = logging.getLogger(__name__)
+
+_ALLOWED_TABLES: frozenset[str] = frozenset({
+    "tournaments", "shortlist", "team_settings", "teams",
+    "team_sessions", "team_records", "refresh_runs", "ncs_team_records",
+})
+_ALLOWED_COLUMN_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,59}$")
+
+_TOURNAMENT_COLUMNS: frozenset[str] = frozenset({
+    "source", "source_id", "name", "detail_url", "location", "director",
+    "start_date", "end_date", "age_divisions", "registered_teams",
+    "division_team_counts", "division_confirmed_counts", "division_details",
+    "division_teams", "team_count_scope", "stature", "format", "tags",
+    "logo_url", "distance_miles", "fetched_at",
+})
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
@@ -401,6 +415,7 @@ def upsert_tournaments(conn: sqlite3.Connection, tournaments: list[Tournament]) 
             (tournament.source, tournament.source_id),
         ).fetchone()
         payload = _tournament_payload(tournament)
+        assert set(payload.keys()) <= _TOURNAMENT_COLUMNS, f"Unexpected tournament columns: {set(payload.keys()) - _TOURNAMENT_COLUMNS}"
 
         if existing is None:
             inserted += 1
@@ -460,6 +475,8 @@ def search_tournaments(
     if end_on_or_before := filters.get("end_on_or_before"):
         clauses.append("(t.end_date IS NULL OR t.end_date <= ?)")
         params.append(end_on_or_before)
+    if filters.get("single_day"):
+        clauses.append("(t.start_date = t.end_date OR t.end_date IS NULL)")
     if search := filters.get("q"):
         clauses.append("(t.name LIKE ? OR t.location LIKE ? OR t.stature LIKE ?)")
         params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
@@ -475,7 +492,8 @@ def search_tournaments(
         """,
         [team_id, *params],
     ).fetchall()
-    api_rows = [_row_to_api(row, target_age, threshold, selected_divisions) for row in rows]
+    home_coords = resolve_home_coords(settings.get("home_label", "Huntsville, AL"))
+    api_rows = [_row_to_api(row, target_age, threshold, selected_divisions, home_coords=home_coords) for row in rows]
     if age := filters.get("age"):
         api_rows = [row for row in api_rows if _has_exact_age(row["age_divisions"], age)]
     if selected_divisions:
@@ -677,6 +695,7 @@ def _row_to_api(
     target_age: str,
     threshold: int,
     selected_divisions: list[str] | None = None,
+    home_coords: tuple[float, float] | None = None,
 ) -> dict[str, Any]:
     data = dict(row)
     age_divisions = json.loads(data["age_divisions"] or "[]")
@@ -716,7 +735,7 @@ def _row_to_api(
     count_scope = "division" if target_age in division_counts else data["team_count_scope"]
     distance_miles = data["distance_miles"]
     if distance_miles is None:
-        distance_miles = estimate_distance_miles(data["location"])
+        distance_miles = estimate_distance_miles(data["location"], home=home_coords or HUNTSVILLE)
     data.update(
         {
             "age_divisions": age_divisions,
@@ -823,6 +842,8 @@ def _create_shortlist_table(conn: sqlite3.Connection) -> None:
 
 
 def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    if table not in _ALLOWED_TABLES:
+        raise ValueError(f"Unknown table: {table!r}")
     return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
 
 
@@ -854,6 +875,10 @@ def _ensure_ncs_team_records_table(conn: sqlite3.Connection) -> None:
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    if table not in _ALLOWED_TABLES:
+        raise ValueError(f"Unknown table: {table!r}")
+    if not _ALLOWED_COLUMN_PATTERN.match(column):
+        raise ValueError(f"Invalid column name: {column!r}")
     columns = _table_columns(conn, table)
     if column not in columns:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
