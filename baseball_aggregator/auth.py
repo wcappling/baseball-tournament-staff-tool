@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import logging
 import os
 import re
 import time
@@ -14,6 +15,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from baseball_aggregator.config import auth_enabled, dev_auto_login, is_hosted_mode
 from baseball_aggregator.storage import connect, create_team, verify_team_password
+
+log = logging.getLogger(__name__)
 
 COOKIE_NAME = "baseball_staff_session"
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
@@ -122,11 +125,14 @@ async def handle_login(request: Request) -> Response:
         with connect() as conn:
             team = verify_team_password(conn, team_slug, password)
         if team is None:
+            log.warning("Failed web login attempt for team slug %r", team_slug)
             return login_page("Team code or password did not match.")
+        log.info("Successful web login for team %r (id=%s)", team_slug, team["id"])
         team_id = team["id"]
     else:
         expected = os.getenv("STAFF_TOOL_PASSWORD", "")
         if not expected or not hmac.compare_digest(password, expected):
+            log.warning("Failed web login attempt (global password)")
             return login_page("Password did not match.")
 
     response = RedirectResponse("/", status_code=303)
@@ -205,7 +211,14 @@ def _has_bearer_token(request: Request) -> bool:
 
 
 def _valid_session(cookie_value: str | None) -> bool:
-    return get_web_team_id(cookie_value) is not None
+    team_id = get_web_team_id(cookie_value)
+    if team_id is None:
+        return False
+    if team_id == "default":
+        return True
+    with connect() as conn:
+        row = conn.execute("SELECT active FROM teams WHERE id = ?", (team_id,)).fetchone()
+    return bool(row and row["active"])
 
 
 def get_web_team_id(cookie_value: str | None) -> str | None:
