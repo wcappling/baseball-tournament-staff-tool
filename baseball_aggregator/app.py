@@ -26,7 +26,7 @@ from baseball_aggregator.auth import (
     login_page,
 )
 from baseball_aggregator.collectors.registry import list_collectors
-from baseball_aggregator.config import get_allowed_origins, get_backup_dir, hosted_jobs_enabled, is_hosted_mode, require_hosted_config
+from baseball_aggregator.config import auth_enabled, get_allowed_origins, get_backup_dir, hosted_jobs_enabled, is_hosted_mode, require_hosted_config
 from baseball_aggregator.maintenance import create_sqlite_backup, prune_backups
 from baseball_aggregator import services, stats
 from baseball_aggregator.storage import (
@@ -375,7 +375,7 @@ def api_v1_divisions(
 
 @app.post("/api/refresh")
 def api_refresh(request: Request, payload: dict[str, Any] | None = None):
-    if not get_web_team_id(request.cookies.get(COOKIE_NAME)):
+    if auth_enabled() and not get_web_team_id(request.cookies.get(COOKIE_NAME)):
         raise HTTPException(status_code=403, detail={"code": "auth_required", "message": "Authentication required."})
     sources = payload.get("sources") if payload else None
     return services.refresh_sources(sources=sources)

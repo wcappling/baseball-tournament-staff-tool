@@ -287,7 +287,8 @@ def test_distance_filter_uses_radius_without_changing_base_dataset():
             ],
         )
         rows_25 = search_tournaments(conn, {"age": "12U", "radius_miles": 25})
-        assert [row["name"] for row in rows_25] == ["Near Event"]
+        # Unknown-distance tournaments pass through (can't measure them); Far Event is filtered out.
+        assert {row["name"] for row in rows_25} == {"Near Event", "Unknown Event"}
 
         rows_200 = search_tournaments(conn, {"age": "12U", "radius_miles": 200})
         assert {row["name"] for row in rows_200} == {"Near Event", "Far Event", "Unknown Event"}
