@@ -158,13 +158,14 @@ def test_native_login_matches_team_slug_case_insensitively_and_preserves_slug(mo
     with sqlite3.connect(tmp_path / "baseball_staff_tool.sqlite3") as conn:
         conn.row_factory = sqlite3.Row
         init_db(conn)
+        # Slugs are normalized to lowercase on creation; "8U_EBC" is stored as "8u_ebc".
         storage.create_team(conn, slug="8U_EBC", display_name="8U Easley Baseball Club", password="EBC")
 
     with TestClient(app) as client:
         login = client.post("/api/v1/login", json={"team_slug": "8u_ebc", "password": "EBC"})
 
         assert login.status_code == 200
-        assert login.json()["team"]["slug"] == "8U_EBC"
+        assert login.json()["team"]["slug"] == "8u_ebc"
 
 
 def test_known_team_settings_include_brand_theme_defaults() -> None:
@@ -326,6 +327,7 @@ def test_web_settings_include_team_identity_for_branding(monkeypatch, tmp_path) 
     with sqlite3.connect(tmp_path / "baseball_staff_tool.sqlite3") as conn:
         conn.row_factory = sqlite3.Row
         init_db(conn)
+        # Slugs are normalized to lowercase on creation; "8U_EBC" is stored as "8u_ebc".
         storage.create_team(conn, slug="8U_EBC", display_name="8U Easley Baseball Club", password="EBC")
 
     with TestClient(app) as client:
@@ -333,7 +335,7 @@ def test_web_settings_include_team_identity_for_branding(monkeypatch, tmp_path) 
         settings = client.get("/api/settings").json()
 
         assert login.status_code == 303
-        assert settings["team_slug"] == "8U_EBC"
+        assert settings["team_slug"] == "8u_ebc"
         assert settings["team_display_name"] == "8U Easley Baseball Club"
         assert settings["logo_url"] == "/static/team-assets/ebc-logo.png"
 
