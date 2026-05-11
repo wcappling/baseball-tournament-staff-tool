@@ -640,6 +640,11 @@ label {
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
+  min-width: 0;
+}
+
+input[type="date"] {
+  min-width: 0;
 }
 
 .filter-label {
@@ -1445,10 +1450,17 @@ textarea {
   flex-wrap: wrap;
   gap: 10px;
   align-items: flex-end;
-  padding: 0 16px 12px;
+  margin-bottom: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: var(--shadow);
 }
 
 .inline-filter-label {
+  flex: 1 1 120px;
+  min-width: 0;
   display: grid;
   gap: 4px;
   color: var(--muted);
@@ -1457,11 +1469,11 @@ textarea {
 }
 
 .inline-filter-input {
-  min-width: 200px;
+  min-width: 0;
 }
 
 .inline-filter-select {
-  min-width: 80px;
+  min-width: 0;
 }
 
 .inline-filter-btn {
@@ -1469,13 +1481,19 @@ textarea {
 }
 
 .inline-filter-btn--primary {
-  background: var(--brand-primary);
-  color: #fff;
-  font-weight: 600;
+  background: var(--accent);
+  color: var(--brand-on-primary);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.inline-filter-btn--primary:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
 }
 
 .inline-filter-select--wide {
-  min-width: 220px;
+  min-width: 0;
 }
 
 /* ── Team stats table: checkbox column ────────────────────────────────────── */
