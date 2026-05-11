@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import re
 import secrets
 import hashlib
@@ -14,6 +16,8 @@ from typing import Any
 from baseball_aggregator.config import get_db_path
 from baseball_aggregator.distance import estimate_distance_miles
 from baseball_aggregator.models import DEFAULT_SETTINGS, Tournament
+
+log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
@@ -38,6 +42,11 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     db_path = db_path or get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
+    # Restrict file to owner-only after creation to prevent unintended reads.
+    try:
+        os.chmod(db_path, 0o600)
+    except OSError:
+        pass
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode=WAL")
@@ -199,6 +208,7 @@ def create_team(
     settings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     init_db(conn)
+    slug = slug.lower().strip()
     now = datetime.now(UTC).isoformat()
     team_id = slug if slug == "default" else uuid.uuid4().hex
     conn.execute(
@@ -315,6 +325,7 @@ def create_team_session(conn: sqlite3.Connection, team_id: str, max_age_seconds:
         (_hash_token(token), team_id, now.isoformat(), expires_at.isoformat()),
     )
     conn.commit()
+    log.info("Session created for team_id=%s expires=%s", team_id, expires_at.isoformat())
     return {"token": token, "created_at": now.isoformat(), "expires_at": expires_at.isoformat()}
 
 
@@ -341,11 +352,26 @@ def get_session_for_token(conn: sqlite3.Connection, token: str) -> dict[str, Any
 
 def revoke_team_session(conn: sqlite3.Connection, token: str) -> None:
     init_db(conn)
+    now = datetime.now(UTC).isoformat()
     conn.execute(
         "UPDATE team_sessions SET revoked_at = ? WHERE token_hash = ?",
-        (datetime.now(UTC).isoformat(), _hash_token(token)),
+        (now, _hash_token(token)),
     )
     conn.commit()
+    log.info("Session revoked at %s", now)
+
+
+def prune_expired_sessions(conn: sqlite3.Connection) -> int:
+    now = datetime.now(UTC).isoformat()
+    cursor = conn.execute(
+        "DELETE FROM team_sessions WHERE expires_at <= ? OR revoked_at IS NOT NULL",
+        (now,),
+    )
+    conn.commit()
+    deleted = cursor.rowcount
+    if deleted:
+        log.info("Pruned %d expired/revoked session(s)", deleted)
+    return deleted
 
 
 def upsert_tournaments(conn: sqlite3.Connection, tournaments: list[Tournament]) -> dict[str, int]:
@@ -919,7 +945,7 @@ def _selected_division_summaries(
     return summaries
 
 
-# ── team_records ───────────────────────────────────────────────────────────────
+# ── team_records ──────────────────────────────────────────────────────────────────────────────
 
 def upsert_team_records(
     conn: sqlite3.Connection,
