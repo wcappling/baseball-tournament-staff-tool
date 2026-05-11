@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from baseball_aggregator.scrapers import ncs_teams as _ncs_teams_scraper
 from baseball_aggregator.auth import (
@@ -23,7 +25,8 @@ from baseball_aggregator.auth import (
     handle_signup,
     login_page,
 )
-from baseball_aggregator.config import get_backup_dir, hosted_jobs_enabled, require_hosted_config
+from baseball_aggregator.collectors.registry import list_collectors
+from baseball_aggregator.config import get_backup_dir, hosted_jobs_enabled, is_hosted_mode, require_hosted_config
 from baseball_aggregator.maintenance import create_sqlite_backup, prune_backups
 from baseball_aggregator import services, stats
 from baseball_aggregator.storage import (
@@ -37,6 +40,7 @@ from baseball_aggregator.storage import (
     latest_refresh_runs,
     list_divisions,
     list_teams,
+    prune_expired_sessions,
     revoke_team_session,
     search_tournaments,
     create_team_session,
@@ -51,6 +55,7 @@ from baseball_aggregator.storage import (
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
+log = logging.getLogger(__name__)
 
 
 class NativeLoginRequest(BaseModel):
@@ -66,6 +71,17 @@ class TeamSettingsUpdate(BaseModel):
     team_count_threshold: int | None = Field(default=None, ge=1)
     refresh_cadence_hours: int | None = Field(default=None, ge=1)
     enabled_sources: list[str] | None = None
+
+    @field_validator("enabled_sources")
+    @classmethod
+    def validate_enabled_sources(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        valid = set(list_collectors())
+        unknown = [s for s in v if s not in valid]
+        if unknown:
+            raise ValueError(f"Unknown source(s): {unknown}. Valid: {sorted(valid)}")
+        return v
     brand_primary: str | None = None
     brand_secondary: str | None = None
     brand_accent: str | None = None
@@ -107,14 +123,25 @@ async def lifespan(app: FastAPI):
                 pass
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        if is_hosted_mode():
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
 app = FastAPI(title="Baseball Tournament Staff Tool", lifespan=lifespan)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(PasswordAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost", "http://127.0.0.1"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -181,7 +208,9 @@ def api_v1_login(payload: NativeLoginRequest):
     with connect() as conn:
         team = verify_team_password(conn, payload.team_slug, payload.password)
         if team is None:
+            log.warning("Failed native login attempt for team slug %r", payload.team_slug)
             return api_error("invalid_credentials", "Invalid team login.", 401)
+        log.info("Successful native login for team %r (id=%s)", payload.team_slug, team["id"])
         session = create_team_session(conn, team["id"])
     return {
         "team": {"id": team["id"], "slug": team["slug"], "display_name": team["display_name"]},
@@ -353,7 +382,6 @@ async def api_enrich(request: Request):
     from baseball_aggregator.storage import upsert_team_records
 
     with connect() as conn:
-        # Get all USSSA tournaments with team data
         rows = conn.execute(
             "SELECT division_teams FROM tournaments WHERE source = 'usssa' AND division_teams != '{}'"
         ).fetchall()
@@ -488,20 +516,12 @@ def api_ncs_teams_scrape(
     state: str | None = None,
     season_id: int | None = None,
 ):
-    """Trigger a scrape of the NCS Teams listing for a given state and age division.
-
-    Parameters default to the team's configured home state and target age
-    division when not provided.  Requires staff auth (same as all other
-    write endpoints on the web app).
-    """
     with connect() as conn:
         team_id = _web_team_id(request)
         settings = get_team_settings(conn, team_id)
         age_division = (age or settings.get("target_age_division") or "8U").strip().upper()
-        # Derive state from home_label ("Huntsville, AL" → "AL") or explicit param
         if not state:
             home_label: str = settings.get("home_label") or ""
-            # Try to extract two-letter state abbreviation from the label
             m = re.search(r"\b([A-Z]{2})\s*$", home_label.upper())
             state = m.group(1) if m else "AL"
         scrape_season_id = season_id or _ncs_teams_scraper.DEFAULT_SEASON_ID
@@ -539,7 +559,7 @@ def api_v1_shortlist(
         return upsert_shortlist(conn, tournament_id, payload.model_dump(), team_id=session["team_id"])
 
 
-# ── Settings management ───────────────────────────────────────────────────────
+# ── Settings management ───────────────────────────────────────────────
 
 @app.post("/api/password")
 async def api_change_password(request: Request):
@@ -577,7 +597,7 @@ async def api_delete_team(request: Request):
     return response
 
 
-# ── Admin endpoints ───────────────────────────────────────────────────────────
+# ── Admin endpoints ────────────────────────────────────────────────
 
 def _require_admin(request: Request) -> str:
     team_id = _web_team_id(request)
@@ -617,9 +637,16 @@ async def _refresh_loop() -> None:
     while True:
         with connect() as conn:
             settings = get_settings(conn)
+            # Collect union of enabled_sources across all active teams so no team's
+            # configured sources are skipped during the scheduled refresh.
+            team_rows = conn.execute("SELECT id FROM teams WHERE active = 1").fetchall()
+            all_sources: set[str] = set()
+            for row in team_rows:
+                ts = get_team_settings(conn, row["id"])
+                all_sources.update(ts.get("enabled_sources", []))
         cadence_seconds = max(300, round(float(settings["refresh_cadence_hours"]) * 3600))
         await asyncio.sleep(cadence_seconds)
-        await asyncio.to_thread(services.refresh_sources)
+        await asyncio.to_thread(services.refresh_sources, list(all_sources) or None)
         if stats_enrichment:
             try:
                 from scripts.stats_worker import enrich_team_records
@@ -639,3 +666,5 @@ async def _backup_loop() -> None:
         await asyncio.sleep((next_run - now).total_seconds())
         await asyncio.to_thread(create_sqlite_backup)
         await asyncio.to_thread(prune_backups, get_backup_dir(), 7)
+        with connect() as conn:
+            prune_expired_sessions(conn)
