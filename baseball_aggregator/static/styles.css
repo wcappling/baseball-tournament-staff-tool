@@ -1315,8 +1315,10 @@ textarea {
   }
 
   .toolbar > label,
-  .toolbar > .filter-field {
+  .toolbar > .filter-field,
+  .toolbar > .filter-checkbox {
     flex: 1 1 100%;
+    white-space: normal;
   }
 
   #applyFilters {
@@ -1424,6 +1426,10 @@ textarea {
   .inline-filters {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .inline-filter-label {
+    flex: none;
   }
 
   .inline-filter-btn,
@@ -1608,4 +1614,81 @@ textarea {
 
 .changes {
   padding: 0 4px;
+}
+
+/* ── Collapsible filter toggle ────────────────────────────────────────────── */
+
+.filter-toggle-row {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 2px;
+}
+
+.filter-toggle-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-toggle-btn {
+  min-height: 0;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.filter-toggle-btn:hover {
+  background: var(--panel);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.filter-chevron {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(225deg);
+  transition: transform 200ms ease;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.toolbar.collapsed .filter-chevron,
+.inline-filters.collapsed .filter-chevron {
+  transform: rotate(45deg);
+  margin-top: -2px;
+}
+
+.toolbar.collapsed .filter-toggle-row,
+.inline-filters.collapsed .filter-toggle-row {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.toolbar.collapsed > *:not(.filter-toggle-row),
+.inline-filters.collapsed > *:not(.filter-toggle-row) {
+  display: none;
+}
+
+.toolbar.collapsed,
+.inline-filters.collapsed {
+  gap: 0;
+  padding: 10px 12px;
 }
