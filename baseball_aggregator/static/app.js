@@ -12,6 +12,7 @@ const searchFilter = document.querySelector("#searchFilter");
 const startDateFilter = document.querySelector("#startDateFilter");
 const endDateFilter = document.querySelector("#endDateFilter");
 const singleDayFilter = document.querySelector("#singleDayFilter");
+const includeUnknownFilter = document.querySelector("#includeUnknownFilter");
 const profileEl = document.querySelector("#profile");
 const teamNameEl = document.querySelector("#teamName");
 const teamLogoEl = document.querySelector("#teamLogo");
@@ -322,7 +323,9 @@ function renderRows() {
   declinedRowsEl.innerHTML = "";
   const declinedItems = [];
   const activeItems = [];
+  const showUnknown = includeUnknownFilter ? includeUnknownFilter.checked : true;
   for (const item of sortRows(tournaments)) {
+    if (!showUnknown && item.distance_miles === null) continue;
     if (item.shortlist_status === "Declined") {
       declinedItems.push(item);
     } else {
@@ -785,6 +788,7 @@ async function loadChanges() {
 }
 
 document.querySelector("#applyFilters").addEventListener("click", loadTournaments);
+if (includeUnknownFilter) includeUnknownFilter.addEventListener("change", renderRows);
 sourceFilter.addEventListener("change", loadDivisions);
 ageFilter.addEventListener("change", loadDivisions);
 divisionMenuButton.addEventListener("click", toggleDivisionMenu);
@@ -1640,6 +1644,24 @@ if (adminTeamRowsEl) {
 
 const adminRefreshBtn = document.querySelector("#adminRefreshBtn");
 if (adminRefreshBtn) adminRefreshBtn.addEventListener("click", loadAdminView);
+
+// ── Collapsible filter toggles ────────────────────────────────────────────────
+
+function setupFilterToggle(toggleBtnId, containerSelector) {
+  const btn = document.querySelector(`#${toggleBtnId}`);
+  if (!btn) return;
+  const container = document.querySelector(containerSelector);
+  if (!container) return;
+  const labelEl = btn.querySelector(".filter-toggle-btn-label") || btn.querySelector("span:last-child");
+  btn.addEventListener("click", () => {
+    const collapsed = container.classList.toggle("collapsed");
+    btn.setAttribute("aria-expanded", String(!collapsed));
+    if (labelEl) labelEl.textContent = collapsed ? "Show" : "Hide";
+  });
+}
+
+setupFilterToggle("toolbarToggle", ".toolbar");
+setupFilterToggle("analysisFiltersToggle", ".inline-filters");
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
