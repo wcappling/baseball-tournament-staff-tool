@@ -9,12 +9,17 @@ from baseball_aggregator.collectors.ncs import (
     parse_whos_coming_counts,
     whos_coming_url,
 )
+from unittest.mock import MagicMock, patch
+
 from baseball_aggregator.collectors.perfect_game import parse_event_list as parse_pg
 from baseball_aggregator.collectors.perfect_game import parse_api_results as parse_pg_api
 from baseball_aggregator.collectors.perfect_game import parse_tournament_teams as parse_pg_teams
+from baseball_aggregator.collectors.perfect_game import enrich_with_team_lists as pg_enrich
 from baseball_aggregator.collectors.usssa import parse_division_results as parse_usssa_divisions
 from baseball_aggregator.collectors.usssa import parse_event_list as parse_usssa
 from baseball_aggregator.collectors.usssa import parse_seeding_report_teams as parse_usssa_teams
+from baseball_aggregator.collectors.usssa import enrich_with_seeding_reports as usssa_enrich
+from baseball_aggregator.collectors.usssa import parse_usssa_age_division
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -147,9 +152,9 @@ def test_usssa_seeding_report_team_parser():
             "confirmed": True,
             "division": "12U AA",
             "city_state": "TN - Parsons",
-            "record": "0-3",
-            "in_class_record": "0-2",
-            "overall_record": "0-3",
+            "record": "0-3-0",
+            "in_class_record": "0-2-0",
+            "overall_record": "0-3-0",
             "team_class": "BBboys12AA",
             "manager_name": "Bryan Barnes",
             "points": 50,
@@ -259,3 +264,186 @@ def test_date_parsing():
     assert parse_date_range("Apr 25", today) == (date(2026, 4, 25), date(2026, 4, 25))
     assert parse_date_range("May 16-17", today) == (date(2026, 5, 16), date(2026, 5, 17))
     assert parse_date_range("Dec 30-Jan 2", today) == (date(2026, 12, 30), date(2027, 1, 2))
+
+
+def test_perfect_game_enrich_populates_division_teams():
+    """Verify pg_enrich calls fetch_tournament_teams per division and stores results."""
+    tournaments = parse_pg_api(
+        [
+            {
+                "eventgroupid": 22417,
+                "eventschedulename": "2026 PG Southeast Spring Season Opener",
+                "total_teams": 6,
+                "eventprimaryballparkcity": "Marietta",
+                "eventprimaryballparkstate": "GA",
+                "events": [
+                    {
+                        "eventid": 137367,
+                        "eventdivision": "12U",
+                        "eventclassification": "Major",
+                        "countteams": 6,
+                        "eventstartdate": "2026-02-20",
+                        "eventenddate": "2026-02-22",
+                    }
+                ],
+            }
+        ]
+    )
+    tournament = tournaments[0]
+    assert tournament.division_teams.get("12U MAJOR") == []
+
+    fake_teams = [{"team_name": "Wildcatters 12U Elite", "record": "29-0-0", "division": "12U MAJOR"}]
+    client = MagicMock()
+    with patch(
+        "baseball_aggregator.collectors.perfect_game.fetch_tournament_teams",
+        return_value=fake_teams,
+    ) as mock_fetch:
+        pg_enrich(tournament, client, target_age="12U")
+        mock_fetch.assert_called_once_with(client, "137367", "12U MAJOR")
+
+    assert tournament.division_teams["12U MAJOR"] == fake_teams
+    assert fake_teams[0] in tournament.division_teams.get("12U", [])
+
+
+def test_perfect_game_enrich_skips_failed_requests():
+    """Verify pg_enrich handles HTTP errors gracefully without crashing."""
+    import httpx
+
+    tournaments = parse_pg_api(
+        [
+            {
+                "eventgroupid": 22417,
+                "eventschedulename": "Test Tournament",
+                "total_teams": 4,
+                "events": [
+                    {
+                        "eventid": 9999,
+                        "eventdivision": "12U",
+                        "eventclassification": "Major",
+                        "countteams": 4,
+                        "eventstartdate": "2026-03-01",
+                        "eventenddate": "2026-03-02",
+                    }
+                ],
+            }
+        ]
+    )
+    tournament = tournaments[0]
+    client = MagicMock()
+    with patch(
+        "baseball_aggregator.collectors.perfect_game.fetch_tournament_teams",
+        side_effect=httpx.HTTPError("connection refused"),
+    ):
+        pg_enrich(tournament, client, target_age="12U")
+
+    assert tournament.division_teams.get("12U MAJOR") == []
+
+
+def test_usssa_enrich_populates_division_teams():
+    """Verify usssa_enrich calls fetch_seeding_report_teams and stores results."""
+    from baseball_aggregator.collectors.usssa import parse_division_results
+    from baseball_aggregator.models import Tournament
+
+    tournament = Tournament(
+        source="usssa",
+        source_id="99999",
+        name="Test USSSA",
+        detail_url="",
+        location="",
+        age_divisions=["12U", "12U OPEN"],
+    )
+    divisions = parse_division_results(
+        [{"class": "12Op", "teamEntered": 8, "teamApproved": 8, "ID": "div-001", "eventFormat": "Pool to 3GG"}]
+    )
+    tournament.division_team_counts = divisions["counts"]
+    tournament.division_confirmed_counts = divisions["approved"]
+    tournament.division_details = divisions["details"]
+    tournament.division_teams = {d: [] for d in divisions["counts"]}
+
+    fake_teams = [{"team_name": "Panthers Baseball", "record": "0-3-0", "division": "12U OPEN"}]
+    client = MagicMock()
+    with patch(
+        "baseball_aggregator.collectors.usssa.fetch_seeding_report_teams",
+        return_value=fake_teams,
+    ) as mock_fetch:
+        usssa_enrich(tournament, client, target_age="12U")
+        mock_fetch.assert_called_once_with(client, "div-001", "12U OPEN")
+
+    assert tournament.division_teams["12U OPEN"] == fake_teams
+
+
+# ---------------------------------------------------------------------------
+# parse_usssa_age_division tests
+# ---------------------------------------------------------------------------
+
+def test_parse_usssa_age_division_8u_class_a():
+    name = "(2026) Easley Baseball Club Schmitt 8U (8 & Under A) | Madison, Alabama"
+    assert parse_usssa_age_division(name) == "8 & Under A"
+
+
+def test_parse_usssa_age_division_10u():
+    name = "(2026) Some Team 10U (10 & Under) | Huntsville, AL"
+    assert parse_usssa_age_division(name) == "10 & Under"
+
+
+def test_parse_usssa_age_division_12u_style():
+    name = "(2026) Hawks Baseball (12U) | Madison, AL"
+    assert parse_usssa_age_division(name) == "12U"
+
+
+def test_parse_usssa_age_division_no_match():
+    assert parse_usssa_age_division("Team Name Without Age") == ""
+
+
+def test_parse_usssa_age_division_empty():
+    assert parse_usssa_age_division("") == ""
+
+
+# ---------------------------------------------------------------------------
+# USSSA ties fallback test
+# ---------------------------------------------------------------------------
+
+def test_usssa_ties_fallback_when_overall_ties_null():
+    """When OverallTies is null/missing, fall back to in-class Ties field."""
+    payload = {
+        "seedingReport": {
+            "tournaments": [
+                {
+                    "teamname": "Test Team",
+                    "OverallWins": 7,
+                    "OverallLoses": 5,
+                    "OverallTies": None,  # null from API
+                    "Wins": 3,
+                    "Loses": 2,
+                    "Ties": 1,           # in-class fallback
+                    "teamid": "123",
+                }
+            ]
+        }
+    }
+    teams = parse_usssa_teams(payload, "8U OPEN")
+    assert len(teams) == 1
+    assert teams[0]["overall_record"] == "7-5-1"
+
+
+def test_usssa_ties_fallback_when_overall_ties_present():
+    """When OverallTies is present (non-null), use it directly."""
+    payload = {
+        "seedingReport": {
+            "tournaments": [
+                {
+                    "teamname": "Test Team",
+                    "OverallWins": 7,
+                    "OverallLoses": 5,
+                    "OverallTies": 2,
+                    "Wins": 3,
+                    "Loses": 2,
+                    "Ties": 1,
+                    "teamid": "456",
+                }
+            ]
+        }
+    }
+    teams = parse_usssa_teams(payload, "8U OPEN")
+    assert len(teams) == 1
+    assert teams[0]["overall_record"] == "7-5-2"

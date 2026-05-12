@@ -1,4 +1,5 @@
 .venv/
+node_modules/
 .tmp/
 test-results/
 playwright-report/
@@ -16,3 +17,4 @@ baseball_aggregator/mnt/
 *.sqlite3-*
 backups/
 pytest-cache-files-*/
+.claude/

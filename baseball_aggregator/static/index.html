@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b121b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Baseball Tournament Staff Tool</title>
+  <title>Tournament IQ</title>
   <script>
     (function () {
       const key = "staff_tool_theme";
@@ -15,117 +15,273 @@
       document.documentElement.setAttribute("data-theme", theme);
     }());
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20260429-shareable-mvp">
+  <link rel="stylesheet" href="/static/styles.css?v=20260507-redesign-v3">
 </head>
 <body>
-  <header class="topbar">
-    <div>
-      <h1>Tournament Staff Tool</h1>
-      <p id="profile">Huntsville, AL - 200 miles - 8U</p>
+
+  <!-- ── Left Sidebar (desktop) ──────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="team-logo-frame" id="teamLogoFrame" hidden>
+        <img id="teamLogo" alt="" decoding="async">
+      </div>
+      <span class="sidebar-app-name">Tournament IQ</span>
     </div>
-    <div class="topbar-actions">
-      <button id="themeToggle" title="Switch between light and dark theme">Dark mode</button>
-      <button id="refreshBtn" class="primary" title="Refresh tournament sources">Refresh</button>
-      <button id="logoutBtn" title="Sign out of the staff tool" aria-label="Logout">
-        <span class="logout-label">Logout</span>
+
+    <nav class="sidebar-nav" aria-label="Primary navigation">
+      <button class="nav-item active" id="sidebarTournamentsBtn" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span>Tournaments</span>
       </button>
-    </div>
-  </header>
 
-  <main>
-    <section class="toolbar" aria-label="Tournament filters">
-      <label>Source
-        <select id="sourceFilter">
-          <option value="">All</option>
-          <option value="ncs">NCS</option>
-          <option value="usssa">USSSA</option>
-          <option value="perfect_game">Perfect Game</option>
-        </select>
-      </label>
-      <label>Age
-        <select id="ageFilter">
-          <option value="6U">6U</option>
-          <option value="7U">7U</option>
-          <option value="8U" selected>8U</option>
-          <option value="9U">9U</option>
-          <option value="10U">10U</option>
-          <option value="11U">11U</option>
-          <option value="12U">12U</option>
-          <option value="13U">13U</option>
-          <option value="14U">14U</option>
-          <option value="15U">15U</option>
-          <option value="16U">16U</option>
-          <option value="17U">17U</option>
-          <option value="18U">18U</option>
-        </select>
-      </label>
-      <div class="filter-field division-filter">
-        <span class="filter-label">Division</span>
-        <button id="divisionMenuButton" class="select-like" type="button" aria-haspopup="true" aria-expanded="false">
-          All
+      <!-- Upcoming subitem under Tournaments -->
+      <button class="nav-subitem" id="sidebarUpcomingBtn" type="button">
+        <span>Upcoming</span>
+      </button>
+
+      <!-- Teams group -->
+      <div class="nav-section">
+        <button class="nav-item" id="sidebarTeamsBtn" type="button">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>Teams</span>
         </button>
-        <div id="divisionOptions" class="division-menu" hidden></div>
-      </div>
-      <label>Min teams
-        <select id="thresholdFilter">
-          <option value="1">1+</option>
-          <option value="2">2+</option>
-          <option value="3">3+</option>
-          <option value="4" selected>4+</option>
-          <option value="5">5+</option>
-          <option value="6">6+</option>
-          <option value="8">8+</option>
-          <option value="10">10+</option>
-          <option value="12">12+</option>
-          <option value="16">16+</option>
-        </select>
-      </label>
-      <label>Radius
-        <select id="radiusFilter">
-          <option value="25">25 mi</option>
-          <option value="50">50 mi</option>
-          <option value="100">100 mi</option>
-          <option value="200" selected>200 mi</option>
-        </select>
-      </label>
-      <label>Search
-        <input id="searchFilter" placeholder="Name, city, stature">
-      </label>
-      <div class="filter-field">
-        <span class="filter-label">Start date</span>
-        <input id="startDateFilter" type="date" aria-label="Start date filter">
-      </div>
-      <div class="filter-field">
-        <span class="filter-label">End date</span>
-        <input id="endDateFilter" type="date" aria-label="End date filter">
-      </div>
-      <button id="applyFilters" title="Apply filters">Apply</button>
-    </section>
-
-    <section>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Teams</th>
-              <th data-sort="start_date">Date</th>
-              <th data-sort="name">Tournament</th>
-              <th class="col-source" data-sort="source">Source</th>
-              <th data-sort="location">Location</th>
-              <th class="col-distance" data-sort="distance_miles">Distance</th>
-              <th data-sort="target_team_count">Teams Registered</th>
-              <th data-sort="selected_age_confirmed_count">Teams Confirmed</th>
-              <th>Age</th>
-              <th>Status</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody id="tournamentRows"></tbody>
-        </table>
+        <button class="nav-subitem" id="sidebarTeamsAnalysisBtn" type="button">
+          <span>Interested / Registered</span>
+        </button>
+        <button class="nav-subitem" id="sidebarTeamsStatsBtn" type="button">
+          <span>All Team Stats</span>
+        </button>
       </div>
 
-      <details class="declined-section">
-        <summary>Declined <span id="declinedCount">(0)</span></summary>
+      <button class="nav-item" id="sidebarChangelogBtn" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>Change Log</span>
+      </button>
+
+      <button class="nav-item" id="sidebarSettingsBtn" type="button" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>Settings</span>
+      </button>
+
+      <button class="nav-item" id="sidebarAdminBtn" type="button" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span>Admin</span>
+      </button>
+    </nav>
+  </aside>
+
+  <!-- ── Main app shell ──────────────────────────────────────────────────── -->
+  <div class="app-shell">
+
+    <header class="topbar">
+      <div class="topbar-start">
+        <div class="menu-anchor">
+          <button id="sidebarToggle" class="icon-btn" type="button" aria-label="Toggle navigation menu" title="Toggle sidebar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+
+          <!-- Mobile navigation dropdown -->
+          <div class="mobile-nav" id="mobileNav" role="menu" hidden>
+            <button class="mobile-nav-item active" id="mobileTournamentsBtn" type="button" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              Tournaments
+            </button>
+            <button class="mobile-nav-item" id="mobileUpcomingBtn" type="button" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              Upcoming
+            </button>
+            <button class="mobile-nav-item" id="mobileTeamsBtn" type="button" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              Teams
+            </button>
+            <button class="mobile-nav-item" id="mobileTeamsStatsBtn" type="button" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+              </svg>
+              All Team Stats
+            </button>
+            <button class="mobile-nav-item" id="mobileChangelogBtn" type="button" role="menuitem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              Change Log
+            </button>
+            <button class="mobile-nav-item" id="mobileSettingsBtn" type="button" role="menuitem" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              Settings
+            </button>
+            <button class="mobile-nav-item" id="mobileAdminBtn" type="button" role="menuitem" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              Admin
+            </button>
+          </div>
+        </div>
+
+        <div class="team-identity">
+          <h1 id="teamName">Tournament IQ</h1>
+          <p id="profile">Loading…</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <button id="themeToggle" class="icon-btn" type="button" title="Switch theme" aria-label="Toggle theme">
+          <!-- Sun: shown in dark mode (click to go light) -->
+          <svg class="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <!-- Moon: shown in light mode (click to go dark) -->
+          <svg class="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+        <button id="refreshBtn" class="primary" type="button">Refresh</button>
+        <button id="logoutBtn" type="button" aria-label="Logout">
+          <span class="logout-label">Logout</span>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── Filter toolbar ─────────────────────────────────────────────── -->
+      <section class="toolbar" aria-label="Tournament filters">
+        <div class="filter-toggle-row">
+          <span class="filter-toggle-label">Filters</span>
+          <button class="filter-toggle-btn" id="toolbarToggle" type="button" aria-expanded="true" title="Toggle filters">
+            <span class="filter-chevron"></span>
+            <span id="toolbarToggleLabel">Hide</span>
+          </button>
+        </div>
+        <label>Source
+          <select id="sourceFilter">
+            <option value="">All</option>
+            <option value="ncs">NCS</option>
+            <option value="usssa">USSSA</option>
+            <option value="perfect_game">Perfect Game</option>
+          </select>
+        </label>
+        <label>Age
+          <select id="ageFilter">
+            <option value="6U">6U</option>
+            <option value="7U">7U</option>
+            <option value="8U" selected>8U</option>
+            <option value="9U">9U</option>
+            <option value="10U">10U</option>
+            <option value="11U">11U</option>
+            <option value="12U">12U</option>
+            <option value="13U">13U</option>
+            <option value="14U">14U</option>
+            <option value="15U">15U</option>
+            <option value="16U">16U</option>
+            <option value="17U">17U</option>
+            <option value="18U">18U</option>
+          </select>
+        </label>
+        <div class="filter-field division-filter">
+          <span class="filter-label">Division</span>
+          <button id="divisionMenuButton" class="select-like" type="button" aria-haspopup="true" aria-expanded="false">
+            All
+          </button>
+          <div id="divisionOptions" class="division-menu" hidden></div>
+        </div>
+        <label>Min teams
+          <select id="thresholdFilter">
+            <option value="1">1+</option>
+            <option value="2">2+</option>
+            <option value="3">3+</option>
+            <option value="4" selected>4+</option>
+            <option value="5">5+</option>
+            <option value="6">6+</option>
+            <option value="8">8+</option>
+            <option value="10">10+</option>
+            <option value="12">12+</option>
+            <option value="16">16+</option>
+          </select>
+        </label>
+        <label>Radius
+          <select id="radiusFilter">
+            <option value="25">25 mi</option>
+            <option value="50">50 mi</option>
+            <option value="100">100 mi</option>
+            <option value="200" selected>200 mi</option>
+          </select>
+        </label>
+        <label class="filter-checkbox">
+          Incl. unknown dist.
+          <input type="checkbox" id="includeUnknownFilter" checked>
+        </label>
+        <label>Search
+          <input id="searchFilter" placeholder="Name, city, stature">
+        </label>
+        <div class="filter-field">
+          <span class="filter-label">Start date</span>
+          <input id="startDateFilter" type="date" aria-label="Start date filter">
+        </div>
+        <div class="filter-field">
+          <span class="filter-label">End date</span>
+          <input id="endDateFilter" type="date" aria-label="End date filter">
+        </div>
+        <label class="filter-checkbox">
+          1&#8209;day only
+          <input type="checkbox" id="singleDayFilter">
+        </label>
+        <button id="applyFilters" type="button">Apply</button>
+      </section>
+
+      <!-- ── Tournaments view ───────────────────────────────────────────── -->
+      <section id="tournamentsView">
         <div class="table-wrap">
           <table>
             <thead>
@@ -143,18 +299,324 @@
                 <th>Notes</th>
               </tr>
             </thead>
-            <tbody id="declinedRows"></tbody>
+            <tbody id="tournamentRows"></tbody>
           </table>
         </div>
-      </details>
 
-      <details class="change-log">
-        <summary>Change Log</summary>
+        <details class="declined-section">
+          <summary>Declined <span id="declinedCount">(0)</span></summary>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Teams</th>
+                  <th data-sort="start_date">Date</th>
+                  <th data-sort="name">Tournament</th>
+                  <th class="col-source" data-sort="source">Source</th>
+                  <th data-sort="location">Location</th>
+                  <th class="col-distance" data-sort="distance_miles">Distance</th>
+                  <th data-sort="target_team_count">Teams Registered</th>
+                  <th data-sort="selected_age_confirmed_count">Teams Confirmed</th>
+                  <th>Age</th>
+                  <th>Status</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody id="declinedRows"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <!-- ── Upcoming (Interested/Registered) Tournaments view ──────────── -->
+      <section id="upcomingView" hidden>
+        <div class="section-header">
+          <h2 class="section-title">Upcoming Tournaments</h2>
+          <p class="subtle">Tournaments marked Interested or Registered, sorted by date.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Teams</th>
+                <th>Date</th>
+                <th>Tournament</th>
+                <th class="col-source">Source</th>
+                <th>Location</th>
+                <th class="col-distance">Distance</th>
+                <th>Teams Registered</th>
+                <th>Teams Confirmed</th>
+                <th>Age</th>
+                <th>Status</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="upcomingRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── Interested / Registered Teams view ────────────────────────── -->
+      <section id="teamsAnalysisView" hidden>
+        <div class="section-header">
+          <h2 class="section-title">Interested / Registered Teams</h2>
+          <p id="teamAnalysisNote" class="subtle"></p>
+          <p id="teamAnalysisEmpty" class="subtle" hidden>
+            No teams found. Mark tournaments as <strong>Interested</strong> or <strong>Registered</strong> and load their team lists to see data here.
+          </p>
+        </div>
+        <div class="inline-filters">
+          <div class="filter-toggle-row">
+            <span class="filter-toggle-label">Filters</span>
+            <button class="filter-toggle-btn" id="analysisFiltersToggle" type="button" aria-expanded="true" title="Toggle filters">
+              <span class="filter-chevron"></span>
+              <span class="filter-toggle-btn-label">Hide</span>
+            </button>
+          </div>
+          <label class="inline-filter-label">Season
+            <select id="analysisSeasonFilter" class="inline-filter-select" hidden>
+            </select>
+          </label>
+          <label class="inline-filter-label">Age
+            <select id="analysisAgeFilter" class="inline-filter-select">
+              <option>6U</option><option>7U</option><option>8U</option><option>9U</option>
+              <option>10U</option><option>11U</option><option>12U</option><option>13U</option>
+              <option>14U</option><option>15U</option><option>16U</option><option>17U</option><option>18U</option>
+            </select>
+          </label>
+          <label class="inline-filter-label">Search teams
+            <input id="analysisTeamSearch" type="text" placeholder="Filter by team name…" class="inline-filter-input">
+          </label>
+          <label class="inline-filter-label">Tournament
+            <select id="analysisTournamentFilter" class="inline-filter-select inline-filter-select--wide">
+              <option value="">All tournaments</option>
+            </select>
+          </label>
+          <label class="inline-filter-label">Min games played
+            <select id="analysisMinGames" class="inline-filter-select">
+              <option value="0">All</option>
+              <option value="1">1+</option>
+              <option value="3">3+</option>
+              <option value="5">5+</option>
+              <option value="10">10+</option>
+            </select>
+          </label>
+          <button id="analysisCompareBtn" type="button" class="inline-filter-btn inline-filter-btn--primary" hidden>Compare selected</button>
+          <button id="analysisClearSelection" type="button" class="inline-filter-btn">Clear selection</button>
+        </div>
+        <div class="table-wrap">
+          <table class="team-stats-table" id="teamAnalysisTable">
+            <thead>
+              <tr>
+                <th class="col-select"></th>
+                <th data-analysis-sort="team_name">Team</th>
+                <th data-analysis-sort="city_state">City/State</th>
+                <th class="col-ncs" data-analysis-sort="ncs_record">NCS</th>
+                <th class="col-usssa" data-analysis-sort="usssa_record">USSSA</th>
+                <th class="col-pg" data-analysis-sort="perfect_game_record">Perfect Game</th>
+                <th data-analysis-sort="cumulative_record">Cumulative</th>
+                <th data-analysis-sort="win_pct">Win%</th>
+                <th data-analysis-sort="total_games">Games</th>
+                <th data-analysis-sort="tournament_count">Tournaments</th>
+              </tr>
+            </thead>
+            <tbody id="teamAnalysisRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── All Team Stats view ────────────────────────────────────────── -->
+      <section id="teamsStatsView" hidden>
+        <div class="section-header">
+          <h2 class="section-title">All Team Stats <span id="teamStatsCount" class="subtle"></span></h2>
+          <p id="teamStatsNote" class="subtle"></p>
+        </div>
+        <div class="inline-filters">
+          <label class="inline-filter-label">Season
+            <select id="statsSeasonFilter" class="inline-filter-select" hidden>
+            </select>
+          </label>
+          <label class="inline-filter-label">Age
+            <select id="statsAgeFilter" class="inline-filter-select">
+              <option>6U</option><option>7U</option><option>8U</option><option>9U</option>
+              <option>10U</option><option>11U</option><option>12U</option><option>13U</option>
+              <option>14U</option><option>15U</option><option>16U</option><option>17U</option><option>18U</option>
+            </select>
+          </label>
+          <label class="inline-filter-label">Search teams
+            <input id="statsTeamSearch" type="text" placeholder="Filter by team name…" class="inline-filter-input">
+          </label>
+          <label class="inline-filter-label">Min games played
+            <select id="statsMinGames" class="inline-filter-select">
+              <option value="0">All</option>
+              <option value="1">1+</option>
+              <option value="3">3+</option>
+              <option value="5">5+</option>
+              <option value="10">10+</option>
+            </select>
+          </label>
+          <button id="statsApplyFilter" type="button" class="inline-filter-btn inline-filter-btn--primary">Apply</button>
+          <button id="statsCompareBtn" type="button" class="inline-filter-btn inline-filter-btn--primary" hidden>Compare selected</button>
+          <button id="statsClearSelection" type="button" class="inline-filter-btn">Clear selection</button>
+        </div>
+        <div class="table-wrap" id="teamStatsTableWrap">
+          <table class="team-stats-table" id="teamStatsTable">
+            <thead>
+              <tr>
+                <th class="col-select"></th>
+                <th data-stats-sort="team_name">Team</th>
+                <th data-stats-sort="city_state">City/State</th>
+                <th class="col-ncs" data-stats-sort="ncs_record">NCS</th>
+                <th class="col-usssa" data-stats-sort="usssa_record">USSSA</th>
+                <th class="col-pg" data-stats-sort="perfect_game_record">Perfect Game</th>
+                <th data-stats-sort="cumulative_record">Cumulative</th>
+                <th data-stats-sort="win_pct">Win%</th>
+                <th data-stats-sort="total_games">Games</th>
+              </tr>
+            </thead>
+            <tbody id="teamStatsRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── Change Log view ────────────────────────────────────────────── -->
+      <section id="changelogView" hidden>
+        <div class="section-header">
+          <h2 class="section-title">Change Log</h2>
+        </div>
+        <div id="recentChangesBanner" hidden></div>
         <div id="changes" class="changes"></div>
-      </details>
-    </section>
-  </main>
+      </section>
 
-  <script src="/static/app.js?v=20260429-shareable-mvp"></script>
+      <!-- ── Settings view ─────────────────────────────────────────────── -->
+      <section id="settingsView" hidden>
+        <div class="settings-view">
+
+          <!-- Team profile -->
+          <div class="settings-card">
+            <h2>Team Profile</h2>
+            <div class="settings-row settings-row--2col">
+              <label>Display name
+                <input id="settingsDisplayName" type="text" placeholder="Hawks 8U">
+              </label>
+              <label>Team code
+                <input id="settingsSlug" type="text" readonly style="opacity:.6;cursor:default;">
+              </label>
+            </div>
+            <div class="settings-row settings-row--2col">
+              <label>Age division
+                <select id="settingsAgeDivision">
+                  <option>6U</option><option>7U</option><option>8U</option><option>9U</option>
+                  <option>10U</option><option>11U</option><option>12U</option><option>13U</option>
+                  <option>14U</option><option>15U</option><option>16U</option><option>17U</option><option>18U</option>
+                </select>
+              </label>
+              <label>Search radius (miles)
+                <select id="settingsRadius">
+                  <option value="25">25 mi</option>
+                  <option value="50">50 mi</option>
+                  <option value="100">100 mi</option>
+                  <option value="200">200 mi</option>
+                </select>
+              </label>
+            </div>
+            <label>Home city / label
+              <input id="settingsHomeLabel" type="text" placeholder="Sacramento, CA">
+            </label>
+            <div id="settingsProfileMsg" class="settings-msg"></div>
+            <button id="settingsSaveProfileBtn" class="primary" type="button">Save profile</button>
+          </div>
+
+          <!-- Branding -->
+          <div class="settings-card">
+            <h2>Branding</h2>
+            <div class="settings-preview-strip" id="settingsPreviewStrip"></div>
+            <div class="logo-upload-row">
+              <span class="field-label">Team logo <span class="field-hint optional">(optional — extracts brand colors)</span></span>
+              <label class="logo-upload-btn" for="settingsLogoFile">Choose image&hellip;</label>
+              <input type="file" id="settingsLogoFile" accept="image/*" class="logo-file-input">
+              <span id="settingsLogoFileName" class="field-hint"></span>
+            </div>
+            <div class="color-row">
+              <label class="color-label">Primary
+                <input type="color" id="settingsColorPrimary" value="#6750A4">
+              </label>
+              <label class="color-label">Secondary
+                <input type="color" id="settingsColorSecondary" value="#625B71">
+              </label>
+              <label class="color-label">Accent
+                <input type="color" id="settingsColorAccent" value="#7D5260">
+              </label>
+            </div>
+            <div id="settingsBrandMsg" class="settings-msg"></div>
+            <button id="settingsSaveBrandBtn" class="primary" type="button">Save branding</button>
+          </div>
+
+          <!-- Change password -->
+          <div class="settings-card">
+            <h2>Change Password</h2>
+            <label>Current password
+              <input id="settingsCurrentPw" type="password" autocomplete="current-password">
+            </label>
+            <label>New password
+              <input id="settingsNewPw" type="password" autocomplete="new-password">
+              <span class="field-hint">At least 8 characters.</span>
+            </label>
+            <label>Confirm new password
+              <input id="settingsConfirmPw" type="password" autocomplete="new-password">
+            </label>
+            <div id="settingsPwMsg" class="settings-msg"></div>
+            <button id="settingsSavePwBtn" class="primary" type="button">Update password</button>
+          </div>
+
+          <!-- Danger zone -->
+          <div class="settings-card">
+            <h2 class="danger">Danger Zone</h2>
+            <p class="subtle">Deleting your team is permanent and cannot be undone. All tournament data, notes, and settings will be removed.</p>
+            <div class="danger-confirm" id="settingsDeleteConfirm" hidden>
+              <label>Type your team code to confirm
+                <input id="settingsDeleteSlugConfirm" type="text" placeholder="team-code" autocomplete="off">
+              </label>
+              <div id="settingsDeleteMsg" class="settings-msg"></div>
+              <div style="display:flex;gap:8px;">
+                <button id="settingsDeleteConfirmBtn" type="button" style="background:var(--danger);color:#fff;border-color:var(--danger);">Delete team permanently</button>
+                <button id="settingsDeleteCancelBtn" type="button">Cancel</button>
+              </div>
+            </div>
+            <button id="settingsDeleteBtn" type="button" style="background:transparent;color:var(--danger);border-color:var(--danger);">Delete this team&hellip;</button>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── Admin view ─────────────────────────────────────────────────── -->
+      <section id="adminView" hidden>
+        <div class="admin-view">
+          <div class="section-header">
+            <h2 class="section-title">Admin — Team Management</h2>
+            <p class="subtle">Manage all teams registered in this instance.</p>
+          </div>
+          <button id="adminRefreshBtn" type="button" class="primary" style="margin-bottom:16px;">Refresh</button>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Team code</th>
+                  <th>Display name</th>
+                  <th>Created</th>
+                  <th>Status</th>
+                  <th class="col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adminTeamRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/utils.js?v=20260508"></script>
+  <script src="/static/app.js?v=20260507-redesign-v3"></script>
 </body>
 </html>

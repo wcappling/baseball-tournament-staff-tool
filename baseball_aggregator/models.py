@@ -13,6 +13,10 @@ DEFAULT_SETTINGS = {
     "team_count_threshold": 4,
     "refresh_cadence_hours": 6,
     "enabled_sources": ["ncs", "usssa", "perfect_game"],
+    "brand_primary": "#0f766e",
+    "brand_secondary": "#115e59",
+    "brand_accent": "#0ea5a2",
+    "logo_url": "",
 }
 
 

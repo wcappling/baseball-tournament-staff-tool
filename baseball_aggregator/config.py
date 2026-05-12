@@ -26,6 +26,11 @@ def is_hosted_mode() -> bool:
     )
 
 
+def dev_auto_login() -> bool:
+    """Skip the login screen entirely. Set DEV_AUTO_LOGIN=true in Railway Dev only."""
+    return os.getenv("DEV_AUTO_LOGIN", "").lower() in {"1", "true", "yes"}
+
+
 def auth_enabled() -> bool:
     return bool(os.getenv("STAFF_TOOL_PASSWORD")) or is_hosted_mode()
 
@@ -35,6 +40,21 @@ def hosted_jobs_enabled() -> bool:
     if value is not None:
         return value.lower() in {"1", "true", "yes"}
     return is_hosted_mode()
+
+
+def get_allowed_origins() -> list[str]:
+    """CORS allowed origins: always localhost; Railway URL auto-detected; explicit overrides via ALLOWED_ORIGINS."""
+    origins = ["http://localhost", "http://127.0.0.1", "http://localhost:8000"]
+    railway_url = os.getenv("RAILWAY_STATIC_URL")
+    if railway_url:
+        url = railway_url.rstrip("/")
+        if not url.startswith("http"):
+            url = f"https://{url}"
+        origins.append(url)
+    extra = os.getenv("ALLOWED_ORIGINS", "")
+    if extra:
+        origins.extend(u.strip() for u in extra.split(",") if u.strip())
+    return origins
 
 
 def require_hosted_config() -> None:

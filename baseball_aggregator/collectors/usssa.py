@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import time
 from datetime import date, datetime
 from typing import Any
+from urllib.parse import urlparse, parse_qs
 
 import httpx
 from bs4 import BeautifulSoup
@@ -38,7 +40,7 @@ def fetch_tournaments(
     target_age: str | None = None,
     polite_delay_sec: float = 0.1,
     enrich_divisions: bool = True,
-    enrich_team_lists: bool = False,
+    enrich_team_lists: bool = True,
     client: httpx.Client | None = None,
 ) -> list[Tournament]:
     own_client = client is None
@@ -201,8 +203,11 @@ def parse_seeding_report_teams(payload: Any, division: str) -> list[dict[str, An
             for value in [clean_text(team.get("TeamState") or ""), clean_text(team.get("teamcity") or "")]
             if value
         )
-        in_class_record = format_record(team.get("Wins"), team.get("Loses"))
-        overall_record = format_record(team.get("OverallWins"), team.get("OverallLoses"))
+        in_class_record = format_record(team.get("Wins"), team.get("Loses"), team.get("Ties"))
+        overall_ties = parse_int(team.get("OverallTies"))
+        if overall_ties is None:
+            overall_ties = parse_int(team.get("Ties")) or 0
+        overall_record = format_record(team.get("OverallWins"), team.get("OverallLoses"), overall_ties)
         parsed.append(
             {
                 "number": index,
@@ -415,7 +420,145 @@ def parse_int(value: Any) -> int | None:
     return int(match.group(0)) if match else None
 
 
-def format_record(wins: Any, losses: Any) -> str:
+def format_record(wins: Any, losses: Any, ties: Any = None) -> str:
     if wins is None and losses is None:
         return ""
-    return f"{parse_int(wins) or 0}-{parse_int(losses) or 0}"
+    w = parse_int(wins) or 0
+    l = parse_int(losses) or 0
+    t = parse_int(ties) or 0
+    return f"{w}-{l}-{t}"
+
+
+# ── Team home page scraper ─────────────────────────────────────────────────────
+
+def parse_usssa_age_division(team_name: str) -> str:
+    """Extract age class from a USSSA team name string.
+
+    USSSA names follow the pattern: '(YEAR) Team Name (Age Class) | City, State'
+    Examples of age class: '8 & Under A', '10 & Under', '12U', '14 & Under B'
+    """
+    # Match the last parenthetical before the pipe or end of string
+    m = re.search(r'\((\d+[^)]+)\)\s*(?:\|.*)?$', team_name.strip())
+    return m.group(1).strip() if m else ""
+
+
+def parse_usssa_manager_history(payload: dict, detail_url: str) -> list[dict]:
+    """Parse W-L season records from the teamInfoV11 managerHistory API response.
+
+    The USSSA team home page is an AngularJS SPA; data is served via
+    POST /api/?action=teamInfoV11 with page=managerHistory.
+
+    Returns a list of dicts with keys: team_name, age_division, season,
+    wins, losses, ties, detail_url, source.
+    """
+    from baseball_aggregator.stats import current_season_year
+
+    info = payload.get("info") or {}
+    history_data = payload.get("managerHistory") or {}
+    history = history_data.get("history") or []
+
+    team_name = clean_text(info.get("name") or "")
+    age_division = clean_text(info.get("classedAs") or info.get("endYearClass") or "")
+    current_season_id = parse_int(info.get("seasonID"))
+
+    records: list[dict] = []
+    for entry in history:
+        wins = parse_int(entry.get("wins")) or 0
+        loses = parse_int(entry.get("loses")) or 0
+        entry_season_id = parse_int(entry.get("season_id"))
+        # Map season_id to year: current seasonID maps to current_season_year();
+        # each prior season is one year earlier.
+        if current_season_id and entry_season_id is not None:
+            year_offset = entry_season_id - current_season_id
+            season = str(int(current_season_year()) + year_offset)
+        else:
+            season = current_season_year()
+        records.append({
+            "source":       SOURCE,
+            "team_name":    team_name,
+            "age_division": age_division,
+            "season":       season,
+            "wins":         wins,
+            "losses":       loses,
+            "ties":         0,  # managerHistory totals don't include ties
+            "detail_url":   detail_url,
+        })
+    return records
+
+
+# Keep old name as alias so existing tests that import parse_usssa_team_home still work
+def parse_usssa_team_home(html: str, detail_url: str) -> list[dict]:
+    """Legacy HTML parser — USSSA pages require JS; use parse_usssa_manager_history instead."""
+    return []
+
+
+async def _fetch_one_team_home(
+    client: httpx.AsyncClient,
+    sem: asyncio.Semaphore,
+    url: str,
+) -> list[dict]:
+    qs = parse_qs(urlparse(url).query)
+    team_id = (qs.get("teamID") or qs.get("teamId") or [""])[0]
+    if not team_id:
+        return []
+    async with sem:
+        try:
+            resp = await client.post(
+                API_URL,
+                params={"action": "teamInfoV11"},
+                data={"teamID": team_id, "page": "managerHistory", "divID": ""},
+                headers={"Referer": url, **HEADERS},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            return parse_usssa_manager_history(resp.json(), url)
+        except Exception:
+            return []
+
+
+async def fetch_usssa_team_histories(detail_urls: list[str]) -> list[dict]:
+    """Async batch fetch of USSSA team home pages. Returns flat list of record dicts."""
+    if not detail_urls:
+        return []
+    sem = asyncio.Semaphore(10)
+    async with httpx.AsyncClient(
+        headers=HEADERS,
+        follow_redirects=True,
+        timeout=15,
+    ) as client:
+        results = await asyncio.gather(
+            *[_fetch_one_team_home(client, sem, url) for url in detail_urls],
+            return_exceptions=True,
+        )
+    flat: list[dict] = []
+    for r in results:
+        if isinstance(r, list):
+            flat.extend(r)
+    return flat
+
+
+def extract_usssa_team_ids_from_tournaments(tournaments: list[dict]) -> dict[str, str]:
+    """Extract {usssa_team_id: detail_url} from division_teams JSON across all tournaments.
+
+    Deduplicates by USSSA teamID so each team home page is only fetched once.
+    """
+    seen: dict[str, str] = {}
+    for t in tournaments:
+        division_teams = t.get("division_teams") or {}
+        if isinstance(division_teams, str):
+            try:
+                division_teams = json.loads(division_teams)
+            except (json.JSONDecodeError, TypeError):
+                division_teams = {}
+        for teams in division_teams.values():
+            if not isinstance(teams, list):
+                continue
+            for team in teams:
+                url = team.get("detail_url") or ""
+                if not url or "teamHome" not in url:
+                    continue
+                qs = parse_qs(urlparse(url).query)
+                team_id = (qs.get("teamID") or qs.get("teamId") or [""])[0]
+                if team_id and team_id not in seen:
+                    seen[team_id] = url
+    return seen

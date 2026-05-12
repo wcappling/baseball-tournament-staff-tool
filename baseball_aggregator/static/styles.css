@@ -1,3 +1,9 @@
+/* ── CSS Variables ───────────────────────────────────────────────────────────
+   Light-mode defaults; all overridden when data-theme="dark" is applied.
+   Brand-specific tokens (--brand-*, --accent, --page, --surface, etc.) are
+   further overridden at runtime by teamThemeTokens() in app.js.
+   ───────────────────────────────────────────────────────────────────────── */
+
 :root {
   --ink: #16202a;
   --muted: #576779;
@@ -5,7 +11,12 @@
   --panel: #edf2f7;
   --accent: #0f766e;
   --accent-dark: #115e59;
+  --brand-primary: #0f766e;
+  --brand-secondary: #115e59;
+  --brand-accent: #0ea5a2;
+  --brand-on-primary: #ffffff;
   --warn: #b45309;
+  --danger: #dc2626;
   --good: #15803d;
   --surface: #ffffff;
   --page: #e8edf3;
@@ -19,23 +30,30 @@
   --shadow: 0 1px 1px rgb(8 15 26 / 4%);
   --input-bg: #ffffff;
   --focus: #0ea5a2;
-  --status-watch: #eef2f7;
-  --status-interested: #e0f2fe;
-  --status-registered: #dcfce7;
-  --status-declined: #fee2e2;
+  --status-open: #ffffff;
+  --status-interested: #e5eef8;
+  --status-registered: #e5f3ec;
+  --status-declined: #f5e5e8;
+  --sidebar-bg: #0a1520;
+  --sidebar-width: 220px;
 }
 
 :root[data-theme="dark"] {
   --ink: #e6eef8;
   --muted: #9daec3;
   --line: #2b3a4c;
-  --panel: #131e2b;
+  --panel: #191919;
   --accent: #14b8a6;
   --accent-dark: #0ea5a2;
+  --brand-primary: #14b8a6;
+  --brand-secondary: #0ea5a2;
+  --brand-accent: #22d3ee;
+  --brand-on-primary: #07101b;
   --warn: #fbbf24;
+  --danger: #f87171;
   --good: #4ade80;
-  --surface: #182432;
-  --page: #0b121b;
+  --surface: #131313;
+  --page: #080808;
   --link: #67c7ff;
   --link-hover: #9fe0ff;
   --detail: #101a27;
@@ -44,20 +62,33 @@
   --pill-warn: #4b3c1a;
   --th-ink: #c8d6e8;
   --shadow: 0 1px 2px rgb(0 0 0 / 40%);
-  --input-bg: #101a27;
+  --input-bg: #0c0c0c;
   --focus: #22d3ee;
-  --status-watch: #1a2736;
-  --status-interested: #113047;
-  --status-registered: #143322;
-  --status-declined: #3d1e24;
+  --status-open: #131313;
+  --status-interested: #131b24;
+  --status-registered: #12190f;
+  --status-declined: #1d1011;
+  --sidebar-bg: #030303;
 }
 
-* {
+/* ── Reset & Base ────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
   margin: 0;
+  display: flex;
+  height: 100dvh;
+  overflow: hidden;
   color: var(--ink);
   background: var(--page);
   font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -65,9 +96,37 @@ body {
   transition: background-color 150ms ease, color 150ms ease;
 }
 
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+a {
+  color: var(--link);
+}
+
+a:hover {
+  color: var(--link-hover);
+}
+
+/* ── Login page override ─────────────────────────────────────────────────── */
+
 body.login-page {
-  min-height: 100vh;
   display: grid;
+  height: auto;
+  min-height: 100dvh;
+  overflow: auto;
   place-items: center;
 }
 
@@ -82,7 +141,7 @@ body.login-page {
   padding: 22px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow: var(--shadow);
 }
 
@@ -91,66 +150,487 @@ body.login-page {
   font-weight: 700;
 }
 
+/* ── Signup panel ─────────────────────────────────────────────────────────── */
+
+.setup-card {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  overflow: hidden;
+}
+
+.setup-summary {
+  padding: 14px 18px;
+  font-size: .875rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--accent);
+  list-style: none;
+  user-select: none;
+}
+.setup-summary::-webkit-details-marker { display: none; }
+.setup-summary::after { content: " ▸"; font-size: .75rem; opacity: .6; }
+details[open] .setup-summary::after { content: " ▾"; }
+
+.setup-form {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.signup-preview {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--brand-primary, #6750A4), var(--brand-secondary, #625B71), var(--brand-accent, #7D5260));
+  margin-bottom: 4px;
+}
+
+.field-label { font-size: .875rem; font-weight: 500; }
+.field-hint { display: block; font-size: .75rem; color: var(--muted); margin-top: 2px; }
+.field-hint.optional { font-style: italic; }
+
+.logo-upload-row { display: flex; flex-direction: column; gap: 4px; }
+.logo-file-input { display: none; }
+.logo-upload-btn {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 5px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  font-size: .8rem;
+  cursor: pointer;
+  color: var(--ink);
+  background: transparent;
+}
+
+.color-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.color-label {
+  font-size: .75rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.color-label input[type="color"] {
+  width: 48px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px;
+  cursor: pointer;
+  background: var(--input-bg);
+}
+
+/* ── Settings view ────────────────────────────────────────────────────────── */
+
+.settings-view {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: grid;
+  gap: 24px;
+}
+
+.settings-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.settings-card h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--ink);
+}
+
+.settings-card h2.danger { color: var(--danger); }
+
+.settings-row {
+  display: grid;
+  gap: 14px;
+}
+
+@media (min-width: 480px) {
+  .settings-row--2col { grid-template-columns: 1fr 1fr; }
+}
+
+.settings-preview-strip {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--brand-primary, #6750A4), var(--brand-secondary, #625B71), var(--brand-accent, #7D5260));
+}
+
+.settings-msg {
+  font-size: .8rem;
+  padding: 6px 10px;
+  border-radius: 6px;
+  display: none;
+}
+.settings-msg.visible { display: block; }
+.settings-msg.success { background: rgba(22, 163, 74, .15); color: #16a34a; }
+.settings-msg.error   { background: rgba(220, 38, 38, .12); color: var(--danger); }
+
+.danger-confirm { display: grid; gap: 8px; }
+
+/* ── Admin view ───────────────────────────────────────────────────────────── */
+
+.admin-view {
+  padding: 24px 16px 48px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.admin-view .section-header { margin-bottom: 16px; }
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+.admin-table th, .admin-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.admin-table th { font-weight: 600; color: var(--muted); font-size: .75rem; }
+.admin-table tr:last-child td { border-bottom: none; }
+.admin-table .col-actions { text-align: right; white-space: nowrap; }
+.admin-table .col-actions button { margin-left: 6px; }
+.admin-badge--active   { color: #16a34a; font-size: .75rem; font-weight: 600; }
+.admin-badge--inactive { color: var(--warn); font-size: .75rem; font-weight: 600; }
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* Sidebar text is always light because sidebar background is always dark */
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.sidebar.closed {
+  width: 0;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  white-space: nowrap;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sidebar-app-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+/* Sidebar team logo */
+.sidebar .team-logo-frame {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar .team-logo-frame[hidden] {
+  display: none;
+}
+
+.sidebar .team-logo-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Sidebar navigation */
+.sidebar-nav {
+  flex: 1;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
+  min-height: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.nav-item svg {
+  flex-shrink: 0;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 1px;
+}
+
+.nav-item.active {
+  background: var(--brand-primary);
+  color: var(--brand-on-primary);
+}
+
+/* ── App shell ───────────────────────────────────────────────────────────── */
+
+.app-shell {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Header / Topbar ─────────────────────────────────────────────────────── */
+
 .topbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  padding: 18px 22px;
+  gap: 8px;
+  padding: 10px 18px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   box-shadow: var(--shadow);
+  flex-shrink: 0;
+  min-height: 58px;
 }
 
+.topbar-start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Hamburger + mobile nav dropdown anchor */
+.menu-anchor {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.icon-btn:hover {
+  background: var(--panel);
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* Theme toggle icon visibility */
+.theme-icon-sun,
+.theme-icon-moon {
+  display: none;
+  flex-shrink: 0;
+}
+
+:root[data-theme="dark"] .theme-icon-sun {
+  display: block;
+}
+
+:root[data-theme="light"] .theme-icon-moon {
+  display: block;
+}
+
+/* Mobile navigation dropdown (shown when hamburger is tapped on mobile) */
+.mobile-nav {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 22%);
+  overflow: hidden;
+  padding: 6px;
+}
+
+.mobile-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  width: 100%;
+  min-height: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.mobile-nav-item:hover {
+  background: var(--panel);
+}
+
+.mobile-nav-item.active {
+  color: var(--accent);
+  background: var(--panel);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  font-weight: 600;
+}
+
+.mobile-nav-item svg {
+  flex-shrink: 0;
+}
+
+/* Team identity in header */
+.team-identity {
+  min-width: 0;
+}
+
+.team-identity h1 {
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.team-identity p {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Topbar action buttons */
 .topbar-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
-
 
 #logoutBtn {
-  min-width: 88px;
+  min-width: 80px;
 }
 
-h1,
-h2,
-p {
-  margin: 0;
-}
-
-h1 {
-  font-size: 24px;
-  font-weight: 700;
-}
-
-h2 {
-  font-size: 16px;
-  margin-bottom: 12px;
-}
-
-.topbar p {
-  color: var(--muted);
-  margin-top: 4px;
-}
+/* ── Main content area ───────────────────────────────────────────────────── */
 
 main {
-  width: min(100%, 1400px);
-  margin: 0 auto;
-  padding: 16px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 16px 20px;
 }
 
+/* ── Filter toolbar ──────────────────────────────────────────────────────── */
+
 .toolbar {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(120px, 1fr)) auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  align-items: end;
+  align-items: flex-end;
   margin-bottom: 14px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: 10px;
+  padding: 12px;
   box-shadow: var(--shadow);
 }
+
+.toolbar > label,
+.toolbar > .filter-field {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.toolbar > button#applyFilters {
+  flex: 0 0 auto;
+  align-self: flex-end;
+}
+
+.filter-checkbox {
+  flex: 1 1 120px;
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.filter-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.toolbar[hidden] {
+  display: none;
+}
+
+/* ── Form elements ───────────────────────────────────────────────────────── */
 
 label {
   display: grid;
@@ -166,6 +646,11 @@ label {
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
+  min-width: 0;
+}
+
+input[type="date"] {
+  min-width: 0;
 }
 
 .filter-label {
@@ -237,13 +722,12 @@ button {
   padding: 6px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow: 0 10px 24px rgb(8 15 26 / 18%);
 }
 
 .division-option {
   display: flex;
-  grid-template-columns: none;
   align-items: center;
   gap: 8px;
   min-height: 30px;
@@ -271,13 +755,14 @@ button:hover {
 
 button.primary {
   background: var(--accent);
-  color: white;
+  color: var(--brand-on-primary);
   border-color: var(--accent);
   font-weight: 700;
 }
 
 button.primary:hover {
   background: var(--accent-dark);
+  border-color: var(--accent-dark);
 }
 
 button:focus-visible,
@@ -290,11 +775,13 @@ a:focus-visible {
   outline-offset: 1px;
 }
 
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+
 .table-wrap,
 .change-log {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .table-wrap {
@@ -350,22 +837,22 @@ td {
   font-size: 14px;
 }
 
-a {
-  color: var(--link);
-}
-
-a:hover {
-  color: var(--link-hover);
-}
+/* ── Common utilities ────────────────────────────────────────────────────── */
 
 .name {
   font-weight: 700;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .subtle {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* ── Status pills ────────────────────────────────────────────────────────── */
 
 .pill {
   display: inline-block;
@@ -378,7 +865,8 @@ a:hover {
 
 .pill.good {
   background: var(--pill-good);
-  color: var(--good);
+  background: color-mix(in srgb, var(--brand-primary) 68%, var(--pill-good));
+  color: var(--brand-on-primary);
 }
 
 .pill.warn {
@@ -390,27 +878,33 @@ a:hover {
   min-width: 120px;
 }
 
-tr.status-watch td {
-  background: var(--status-watch);
+tr.status-open td {
+  background: var(--status-open);
 }
 
 tr.status-interested td {
   background: var(--status-interested);
+  background: color-mix(in srgb, var(--brand-secondary) 12%, var(--status-interested));
 }
 
 tr.status-registered td {
   background: var(--status-registered);
+  background: color-mix(in srgb, var(--brand-primary) 14%, var(--status-registered));
 }
 
 tr.status-declined td {
   background: var(--status-declined);
+  background: color-mix(in srgb, var(--brand-secondary) 10%, var(--status-declined));
 }
 
 textarea {
   min-width: 220px;
   min-height: 44px;
+  max-height: 80px;
   resize: vertical;
 }
+
+/* ── Team list (tournament expand) ───────────────────────────────────────── */
 
 .teams-toggle {
   white-space: nowrap;
@@ -453,7 +947,7 @@ textarea {
 
 .division-panel {
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 10px;
   background: var(--input-bg);
 }
@@ -501,7 +995,6 @@ textarea {
   gap: 8px;
 }
 
-
 .mobile-registered {
   display: none;
   font-weight: 700;
@@ -515,6 +1008,8 @@ textarea {
   white-space: nowrap;
 }
 
+/* ── Collapsible sections ────────────────────────────────────────────────── */
+
 .change-log {
   margin-top: 14px;
   padding: 14px;
@@ -523,13 +1018,12 @@ textarea {
 .declined-section {
   margin-top: 14px;
   padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
 
-.declined-section summary {
-  cursor: pointer;
-  font-weight: 700;
-}
-
+.declined-section summary,
 .change-log summary {
   cursor: pointer;
   font-weight: 700;
@@ -544,41 +1038,194 @@ textarea {
   border-bottom: 0;
 }
 
+/* ── Sidebar subitems (Teams section) ─────────────────────────────────────── */
+
+.nav-section {
+  margin-top: 4px;
+}
+
+.nav-section-label {
+  display: block;
+  padding: 8px 12px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
+/* nav-item inside nav-section resets top margin */
+.nav-section > .nav-item {
+  margin-top: 2px;
+}
+
+.nav-subitem {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px 8px 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  text-align: left;
+  transition: background 140ms ease, color 140ms ease;
+  white-space: nowrap;
+}
+
+.nav-subitem:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.nav-subitem.active {
+  background: var(--brand-primary);
+  color: var(--brand-on-primary);
+  font-weight: 600;
+}
+
+/* ── Content section headers ───────────────────────────────────────────────── */
+
+.section-header {
+  padding: 16px 16px 8px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+/* ── Skill Level Badges ────────────────────────────────────────────────────── */
+
+.skill-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.skill-badge--elite---national   { background: #7c3aed22; color: #7c3aed; }
+.skill-badge--high-competitive   { background: #dc262622; color: #dc2626; }
+.skill-badge--middle-competitive { background: #d9770622; color: #d97706; }
+.skill-badge--developmental      { background: #16a34a22; color: #16a34a; }
+
+[data-theme="dark"] .skill-badge--elite---national   { background: #7c3aed22; color: #a78bfa; }
+[data-theme="dark"] .skill-badge--high-competitive   { background: #dc262622; color: #fca5a5; }
+[data-theme="dark"] .skill-badge--middle-competitive { background: #d9770622; color: #fcd34d; }
+[data-theme="dark"] .skill-badge--developmental      { background: #16a34a22; color: #86efac; }
+
+/* ── Teams / Analysis ──────────────────────────────────────────────────────── */
+
+.appearance-list {
+  max-width: min(320px, 85vw);
+  white-space: normal;
+  line-height: 1.5;
+}
+
+.appearance-chip {
+  display: block;
+  background: var(--pill);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  margin: 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appearance-chip--clickable {
+  cursor: pointer;
+}
+
+.appearance-chip--clickable:hover {
+  background: var(--brand-primary);
+  color: #fff;
+}
+
+.appearance-chip--active {
+  background: var(--brand-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.team-stats-note {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.team-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.team-stats-table th,
+.team-stats-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.team-stats-table th[data-stats-sort],
+.team-stats-table th[data-analysis-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.team-stats-table th[data-stats-sort]:hover,
+.team-stats-table th[data-analysis-sort]:hover {
+  color: var(--accent);
+}
+
+.team-stats-table td.record-cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.team-stats-table td.record-cumulative {
+  font-weight: 600;
+}
+
+.team-stats-table td.win-pct {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Team Analysis view ──────────────────────────────────────────────────── */
+
+#teamsView {
+  padding: 4px 0;
+}
+
+.team-analysis-header {
+  margin-bottom: 12px;
+}
+
+.appearance-list {
+  max-width: min(320px, 85vw);
+  white-space: normal;
+  line-height: 1.5;
+}
+
+/* ── Responsive: tablet (hide sidebar by default, keep hamburger) ─────────── */
+
 @media (max-width: 900px) {
-  h1 {
-    font-size: 20px;
-  }
-
-  .topbar {
-    display: grid;
-    grid-template-columns: 1fr;
-    align-items: start;
-    gap: 12px;
-    padding: 14px;
-  }
-
-  .topbar-actions {
-    justify-content: start;
-    flex-wrap: wrap;
-  }
-
-  .topbar-actions button {
-    flex: 1 1 140px;
-  }
-
-  .toolbar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
-  }
-
-  .toolbar > * {
-    min-width: 0;
+  .toolbar > label,
+  .toolbar > .filter-field {
+    flex: 1 1 calc(50% - 10px);
   }
 
   #applyFilters {
-    grid-column: 1 / -1;
     width: 100%;
-    justify-self: stretch;
   }
 
   .division-breakdown {
@@ -590,57 +1237,58 @@ textarea {
   }
 }
 
+/* ── Responsive: mobile ─────────────────────────────────────────────────── */
 
-@media (max-width: 700px) {
-  .table-wrap > table .col-source,
-  .table-wrap > table .col-distance {
+@media (max-width: 767px) {
+  /* Hide desktop sidebar on mobile — navigation handled by dropdown */
+  .sidebar {
     display: none;
   }
 
-  .table-wrap > table > tbody > tr.team-details-row {
-    display: none !important;
+  .topbar {
+    padding: 8px 12px;
   }
 
-  .table-wrap > table > tbody > tr:not(.team-details-row) {
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    margin: 10px;
-    background: var(--surface);
-    box-shadow: var(--shadow);
+  .team-identity h1 {
+    font-size: 16px;
   }
 
-  .table-wrap > table > tbody > tr.status-watch:not(.team-details-row) {
-    background: var(--status-watch);
+  .topbar-actions {
+    gap: 6px;
   }
 
-  .table-wrap > table > tbody > tr.status-interested:not(.team-details-row) {
-    background: var(--status-interested);
+  .table-wrap > table > tbody > tr.status-open:not(.team-details-row) {
+    background: var(--status-open);
   }
 
-  .table-wrap > table > tbody > tr.status-registered:not(.team-details-row) {
-    background: var(--status-registered);
+  #logoutBtn {
+    min-width: 0;
+    flex: 0 0 44px;
+    width: 44px;
+    padding-inline: 0;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0;
   }
 
-  .table-wrap > table > tbody > tr.status-declined:not(.team-details-row) {
-    background: var(--status-declined);
+  #logoutBtn::before {
+    content: "↪";
+    font-size: 18px;
+    line-height: 1;
   }
 
-  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(1),
-  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(4),
-  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(8),
-  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(9),
-  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(10),
-  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(11) {
-    display: none;
-  }
-
-  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(3) .subtle,
-  .desktop-registered {
-    display: none;
-  }
-
-  .mobile-registered {
-    display: inline;
+  #logoutBtn .logout-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    border: 0;
+    white-space: nowrap;
   }
 }
 
@@ -669,15 +1317,17 @@ textarea {
   }
 
   main {
-    padding: 12px;
+    padding: 10px 10px 16px;
   }
 
-  .toolbar {
-    grid-template-columns: 1fr;
+  .toolbar > label,
+  .toolbar > .filter-field,
+  .toolbar > .filter-checkbox {
+    flex: 1 1 100%;
+    white-space: normal;
   }
 
   #applyFilters {
-    grid-column: 1 / -1;
     width: 100%;
   }
 
@@ -685,6 +1335,13 @@ textarea {
     min-width: 0;
   }
 
+  /* Hide source/distance columns to save horizontal space */
+  .table-wrap > table .col-source,
+  .table-wrap > table .col-distance {
+    display: none;
+  }
+
+  /* Card layout for tournament rows */
   .table-wrap > table > thead {
     display: none;
   }
@@ -693,7 +1350,36 @@ textarea {
     display: grid;
     gap: 8px;
     padding: 12px;
-    border-bottom: 1px solid var(--line);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin: 10px 0;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .table-wrap > table > tbody > tr.status-open:not(.team-details-row) {
+    background: var(--status-open);
+  }
+
+  .table-wrap > table > tbody > tr.status-interested:not(.team-details-row) {
+    background: var(--status-interested);
+  }
+
+  .table-wrap > table > tbody > tr.status-registered:not(.team-details-row) {
+    background: var(--status-registered);
+  }
+
+  .table-wrap > table > tbody > tr.status-declined:not(.team-details-row) {
+    background: var(--status-declined);
+  }
+
+  .table-wrap > table > tbody > tr:not(.team-details-row) > td:nth-child(3) .subtle,
+  .desktop-registered {
+    display: none;
+  }
+
+  .mobile-registered {
+    display: inline;
   }
 
   .table-wrap > table > tbody > tr:not(.team-details-row) > td {
@@ -735,8 +1421,28 @@ textarea {
   .team-list {
     min-width: 560px;
   }
-}
 
+  /* Inline filter dropdowns: release the 220px min-width so they fit on small screens */
+  .inline-filter-select--wide {
+    min-width: auto;
+    width: 100%;
+  }
+
+  /* Stack inline filters vertically so each control is full-width */
+  .inline-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inline-filter-label {
+    flex: none;
+  }
+
+  .inline-filter-btn,
+  .inline-filter-btn--primary {
+    width: 100%;
+  }
+}
 
 @media (max-width: 480px) {
   .table-wrap > table > tbody > tr:not(.team-details-row) > td {
@@ -747,43 +1453,248 @@ textarea {
   .table-wrap > table > tbody > tr:not(.team-details-row) > td::before {
     display: block;
   }
+}
 
-  .topbar-actions {
-    width: 100%;
-    gap: 6px;
+/* ── Inline filters (team stats / team analysis) ──────────────────────────── */
+
+.inline-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: var(--shadow);
+}
+
+.inline-filter-label {
+  flex: 1 1 120px;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inline-filter-input {
+  min-width: 0;
+}
+
+.inline-filter-select {
+  min-width: 0;
+}
+
+.inline-filter-btn {
+  align-self: flex-end;
+}
+
+.inline-filter-btn--primary {
+  background: var(--accent);
+  color: var(--brand-on-primary);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.inline-filter-btn--primary:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+}
+
+.inline-filter-select--wide {
+  min-width: 0;
+}
+
+/* ── Team stats table: checkbox column ────────────────────────────────────── */
+
+.team-stats-table .col-select {
+  width: 32px;
+  padding: 6px 4px;
+  cursor: default;
+}
+
+.team-stats-table input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.team-row-selected td {
+  background: var(--surface);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+/* ── Team stats table: mobile layout ─────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Override generic table card layout for team-stats-table:
+     it sits inside its own .table-wrap but needs horizontal scroll, not cards */
+  .team-stats-table {
+    min-width: 500px;
   }
 
-  .topbar-actions button {
-    flex: 1 1 110px;
-    padding-inline: 9px;
+  /* Hide source-specific columns on mobile for cleaner view */
+  .team-stats-table .col-ncs,
+  .team-stats-table .col-usssa,
+  .team-stats-table .col-pg {
+    display: none;
   }
 
-  #logoutBtn {
-    flex: 0 0 44px;
-    min-width: 44px;
-    padding-inline: 0;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 0;
+  /* Hide Tournaments/appearances column on mobile — chips overflow badly */
+  #teamAnalysisTable th[data-analysis-sort="tournament_count"],
+  #teamAnalysisTable .appearance-list {
+    display: none;
   }
 
-  #logoutBtn::before {
-    content: "↪";
-    font-size: 18px;
-    line-height: 1;
-  }
-
-  #logoutBtn .logout-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
+  /* Prevent the generic tournament card layout from applying to team stats rows */
+  #teamStatsTable tbody tr,
+  #teamAnalysisTable tbody tr {
+    display: table-row;
     padding: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    border: 0;
-    white-space: nowrap;
+    border: none;
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    background: transparent;
   }
+
+  #teamStatsTable tbody tr td,
+  #teamAnalysisTable tbody tr td {
+    display: table-cell;
+    grid-template-columns: unset;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  #teamStatsTable tbody tr td::before,
+  #teamAnalysisTable tbody tr td::before {
+    content: none !important;
+  }
+}
+
+/* ── Recent changes banner ────────────────────────────────────────────────── */
+
+.recent-changes-banner {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: var(--surface);
+  background: color-mix(in srgb, #f59e0b 12%, var(--surface));
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+}
+
+.recent-changes-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 10px;
+  color: #92400e;
+}
+
+:root[data-theme="dark"] .recent-changes-title {
+  color: #fde68a;
+}
+
+:root[data-theme="dark"] .recent-changes-banner {
+  background: var(--surface);
+  background: color-mix(in srgb, #f59e0b 10%, var(--surface));
+  border-color: #b45309;
+}
+
+.recent-changes-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.recent-changes-list li {
+  font-size: 13px;
+}
+
+/* ── Changes section wrapper ──────────────────────────────────────────────── */
+
+.changes {
+  padding: 0 4px;
+}
+
+/* ── Collapsible filter toggle ────────────────────────────────────────────── */
+
+.filter-toggle-row {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 2px;
+}
+
+.filter-toggle-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-toggle-btn {
+  min-height: 0;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.filter-toggle-btn:hover {
+  background: var(--panel);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.filter-chevron {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(225deg);
+  transition: transform 200ms ease;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.toolbar.collapsed .filter-chevron,
+.inline-filters.collapsed .filter-chevron {
+  transform: rotate(45deg);
+  margin-top: -2px;
+}
+
+.toolbar.collapsed .filter-toggle-row,
+.inline-filters.collapsed .filter-toggle-row {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.toolbar.collapsed > *:not(.filter-toggle-row),
+.inline-filters.collapsed > *:not(.filter-toggle-row) {
+  display: none;
+}
+
+.toolbar.collapsed,
+.inline-filters.collapsed {
+  gap: 0;
+  padding: 10px 12px;
 }
