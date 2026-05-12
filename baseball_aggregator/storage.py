@@ -24,6 +24,7 @@ _ALLOWED_TABLES: frozenset[str] = frozenset({
     "team_sessions", "team_records", "refresh_runs", "ncs_team_records",
 })
 _ALLOWED_COLUMN_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,59}$")
+_DIVISION_DETAIL_NOISE_FIELDS: frozenset[str] = frozenset({"pending_entries", "deadline_passed"})
 
 _TOURNAMENT_COLUMNS: frozenset[str] = frozenset({
     "source", "source_id", "name", "detail_url", "location", "director",
@@ -389,6 +390,24 @@ def prune_expired_sessions(conn: sqlite3.Connection) -> int:
     return deleted
 
 
+def _division_details_has_meaningful_change(old_json: str | None, new_json: str | None) -> bool:
+    """Return True only if division_details changed in a staff-relevant field (not just pending_entries etc.)."""
+    try:
+        old = json.loads(old_json or "{}")
+        new = json.loads(new_json or "{}")
+    except (json.JSONDecodeError, TypeError):
+        return True
+    for div in set(old) | set(new):
+        o = old.get(div) or {}
+        n = new.get(div) or {}
+        for key in set(o) | set(n):
+            if key in _DIVISION_DETAIL_NOISE_FIELDS:
+                continue
+            if o.get(key) != n.get(key):
+                return True
+    return False
+
+
 def upsert_tournaments(conn: sqlite3.Connection, tournaments: list[Tournament]) -> dict[str, int]:
     init_db(conn)
     inserted = 0
@@ -441,6 +460,8 @@ def upsert_tournaments(conn: sqlite3.Connection, tournaments: list[Tournament]) 
                 old_value = existing[field]
                 new_value = payload[field]
                 if old_value != new_value:
+                    if field == "division_details" and not _division_details_has_meaningful_change(old_value, new_value):
+                        continue
                     conn.execute(
                         "INSERT INTO changes(tournament_id, source, source_id, field, old_value, new_value, detected_at) "
                         "VALUES (?, ?, ?, ?, ?, ?, ?)",

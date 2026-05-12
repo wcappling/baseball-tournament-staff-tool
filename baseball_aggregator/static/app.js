@@ -793,17 +793,27 @@ function parseChangeLines(field, oldVal, newVal) {
     if (field === "division_details") {
       const oldD = JSON.parse(oldVal || "{}");
       const newD = JSON.parse(newVal || "{}");
+      const NOISE = new Set(["pending_entries", "deadline_passed", "division_id", "raw_division"]);
+      const LABELS = {
+        max_entries: "max entries", entry_fee: "entry fee", min_games: "min games",
+        event_format: "format", stature: "stature", location: "location", gate_fee: "gate fee",
+      };
       const lines = [];
       const allDivs = new Set([...Object.keys(oldD), ...Object.keys(newD)]);
       for (const div of [...allDivs].sort()) {
         if (/^\d{1,2}U$/i.test(div)) continue;
         const o = oldD[div] || {};
         const n = newD[div] || {};
-        if (o.sold_out !== n.sold_out) {
-          lines.push(`${div}: ${n.sold_out ? "SOLD OUT" : "now open"}`);
-        }
-        if (o.max_entries != null && n.max_entries != null && o.max_entries !== n.max_entries) {
-          lines.push(`${div}: max entries ${o.max_entries} → ${n.max_entries}`);
+        const allKeys = new Set([...Object.keys(o), ...Object.keys(n)]);
+        for (const key of allKeys) {
+          if (NOISE.has(key) || o[key] === n[key]) continue;
+          if (key === "sold_out") {
+            lines.push(`${div}: ${n.sold_out ? "SOLD OUT" : "now open"}`);
+          } else {
+            const label = LABELS[key] ?? key.replace(/_/g, " ");
+            const fmt = v => v == null ? "—" : String(v);
+            lines.push(`${div}: ${label} ${fmt(o[key])} → ${fmt(n[key])}`);
+          }
         }
       }
       return lines.length ? lines : null;
