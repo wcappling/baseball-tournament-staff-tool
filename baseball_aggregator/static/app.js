@@ -846,6 +846,8 @@ async function loadChanges() {
 
   if (!changes.length) {
     changesEl.innerHTML = '<p class="subtle">No changes recorded yet.</p>';
+    const recentBannerEmpty = document.querySelector("#recentChangesBanner");
+    if (recentBannerEmpty) recentBannerEmpty.hidden = true;
     return;
   }
 
