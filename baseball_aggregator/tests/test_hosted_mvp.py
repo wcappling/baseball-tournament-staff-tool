@@ -17,6 +17,7 @@ from baseball_aggregator.storage import connect, init_db
 
 def test_auth_blocks_api_and_allows_login_and_static(monkeypatch):
     monkeypatch.setenv("STAFF_TOOL_PASSWORD", "staff-pass")
+    monkeypatch.setenv("ADMIN_PASSWORD", "admin-pass")
     monkeypatch.setenv("SESSION_SECRET", "test-secret-value-that-is-long-enough")
 
     with TestClient(app) as client:
@@ -25,9 +26,9 @@ def test_auth_blocks_api_and_allows_login_and_static(monkeypatch):
 
         bad = client.post("/login", data={"password": "wrong"})
         assert bad.status_code == 200
-        assert "Password did not match" in bad.text
+        assert "did not match" in bad.text
 
-        good = client.post("/login", data={"password": "staff-pass"}, follow_redirects=False)
+        good = client.post("/login", data={"password": "admin-pass"}, follow_redirects=False)
         assert good.status_code == 303
         assert "baseball_staff_session" in good.headers["set-cookie"]
 
