@@ -118,7 +118,7 @@ def login_page(error: str = "", signup_error: str = "") -> HTMLResponse:
 
 async def handle_login(request: Request) -> Response:
     payload = parse_qs((await request.body()).decode("utf-8"))
-    team_slug = payload.get("team_slug", [""])[0].strip()
+    team_slug = payload.get("team_slug", [""])[0].strip().lower()
     password = payload.get("password", [""])[0]
     team_id = "default"
     if team_slug == "default":
