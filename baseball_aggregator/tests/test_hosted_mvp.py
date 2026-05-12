@@ -50,6 +50,7 @@ def test_hosted_mode_requires_auth_secret_and_data_dir(monkeypatch):
     monkeypatch.delenv("STAFF_TOOL_PASSWORD", raising=False)
     monkeypatch.delenv("SESSION_SECRET", raising=False)
     monkeypatch.delenv("STAFF_TOOL_DATA_DIR", raising=False)
+    monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
 
     try:
         require_hosted_config()
@@ -61,10 +62,12 @@ def test_hosted_mode_requires_auth_secret_and_data_dir(monkeypatch):
     assert "STAFF_TOOL_PASSWORD" in message
     assert "SESSION_SECRET" in message
     assert "STAFF_TOOL_DATA_DIR" in message
+    assert "ADMIN_PASSWORD" in message
 
     monkeypatch.setenv("STAFF_TOOL_PASSWORD", "staff-pass")
     monkeypatch.setenv("SESSION_SECRET", "test-secret-value-that-is-long-enough")
     monkeypatch.setenv("STAFF_TOOL_DATA_DIR", str(Path("data")))
+    monkeypatch.setenv("ADMIN_PASSWORD", "admin-pass")
     require_hosted_config()
 
 
