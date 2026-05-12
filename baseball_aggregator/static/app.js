@@ -614,7 +614,7 @@ function applyTeamBrand(settings) {
     }
   }
 
-  const isAdmin = settings.team_id === "default";
+  const isAdmin = settings.team_slug === "default";
   [sidebarSettingsBtn, mobileSettingsBtn].forEach((b) => { if (b) b.hidden = isAdmin; });
   [sidebarAdminBtn,    mobileAdminBtn   ].forEach((b) => { if (b) b.hidden = !isAdmin; });
 }
