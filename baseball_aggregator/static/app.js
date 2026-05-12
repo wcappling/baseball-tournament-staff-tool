@@ -920,6 +920,10 @@ async function loadChanges() {
     `;
     changesEl.appendChild(div);
   }
+
+  if (!changesEl.children.length) {
+    changesEl.innerHTML = '<p class="subtle">No displayable changes recorded yet.</p>';
+  }
 }
 
 document.querySelector("#applyFilters").addEventListener("click", loadTournaments);
