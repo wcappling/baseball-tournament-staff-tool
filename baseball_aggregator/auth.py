@@ -13,7 +13,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from baseball_aggregator.config import auth_enabled, dev_auto_login, is_hosted_mode
+from baseball_aggregator.config import auth_enabled, dev_auto_login, get_admin_password, is_hosted_mode
 from baseball_aggregator.storage import connect, create_team, verify_team_password
 
 log = logging.getLogger(__name__)
@@ -121,7 +121,14 @@ async def handle_login(request: Request) -> Response:
     team_slug = payload.get("team_slug", [""])[0].strip()
     password = payload.get("password", [""])[0]
     team_id = "default"
-    if team_slug:
+    if team_slug == "default":
+        # Admin login: must match ADMIN_PASSWORD env var (required — no fallback to DB)
+        admin_pw = get_admin_password()
+        if not admin_pw or not hmac.compare_digest(password, admin_pw):
+            log.warning("Failed admin login attempt")
+            return login_page("Team code or password did not match.")
+        log.info("Successful admin login")
+    elif team_slug:
         with connect() as conn:
             team = verify_team_password(conn, team_slug, password)
         if team is None:
