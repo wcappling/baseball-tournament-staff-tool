@@ -1038,6 +1038,36 @@ textarea {
   border-bottom: 0;
 }
 
+.change-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.change-tournament {
+  font-size: 14px;
+}
+
+.change-time {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.change-lines {
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.change-lines li {
+  padding: 1px 0;
+}
+
 /* ── Sidebar subitems (Teams section) ─────────────────────────────────────── */
 
 .nav-section {
