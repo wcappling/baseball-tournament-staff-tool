@@ -741,30 +741,150 @@ async function loadTeamStatsMap() {
   }
 }
 
+function formatRelativeTime(isoStr) {
+  const date = new Date(isoStr);
+  if (isNaN(date.getTime())) return isoStr;
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function parseChangeLines(field, oldVal, newVal) {
+  try {
+    if (field === "registered_teams") {
+      const o = Number(oldVal), n = Number(newVal);
+      if (!isNaN(o) && !isNaN(n)) {
+        const delta = n - o;
+        const sign = delta > 0 ? "+" : "";
+        return [`Registered teams: ${o} → ${n} (${sign}${delta})`];
+      }
+      return [`Registered teams: ${oldVal} → ${newVal}`];
+    }
+
+    if (field === "division_teams") {
+      const oldDivs = JSON.parse(oldVal || "{}");
+      const newDivs = JSON.parse(newVal || "{}");
+      const lines = [];
+      const allDivs = new Set([...Object.keys(oldDivs), ...Object.keys(newDivs)]);
+      for (const div of [...allDivs].sort()) {
+        if (/^\d{1,2}U$/i.test(div)) continue;
+        const oldTeams = new Map((oldDivs[div] || []).map(t => [
+          (t.team_name || String(t)).toLowerCase(), t.team_name || String(t)
+        ]));
+        const newTeams = new Map((newDivs[div] || []).map(t => [
+          (t.team_name || String(t)).toLowerCase(), t.team_name || String(t)
+        ]));
+        for (const [k, name] of newTeams) {
+          if (!oldTeams.has(k)) lines.push(`${div}: + ${name}`);
+        }
+        for (const [k, name] of oldTeams) {
+          if (!newTeams.has(k)) lines.push(`${div}: removed ${name}`);
+        }
+      }
+      return lines.length ? lines : null;
+    }
+
+    if (field === "division_details") {
+      const oldD = JSON.parse(oldVal || "{}");
+      const newD = JSON.parse(newVal || "{}");
+      const lines = [];
+      const allDivs = new Set([...Object.keys(oldD), ...Object.keys(newD)]);
+      for (const div of [...allDivs].sort()) {
+        if (/^\d{1,2}U$/i.test(div)) continue;
+        const o = oldD[div] || {};
+        const n = newD[div] || {};
+        if (o.sold_out !== n.sold_out) {
+          lines.push(`${div}: ${n.sold_out ? "SOLD OUT" : "now open"}`);
+        }
+        if (o.max_entries != null && n.max_entries != null && o.max_entries !== n.max_entries) {
+          lines.push(`${div}: max entries ${o.max_entries} → ${n.max_entries}`);
+        }
+      }
+      return lines.length ? lines : null;
+    }
+
+    if (field === "division_confirmed_counts") {
+      const o = JSON.parse(oldVal || "{}");
+      const n = JSON.parse(newVal || "{}");
+      const lines = [];
+      const allDivs = new Set([...Object.keys(o), ...Object.keys(n)]);
+      for (const div of [...allDivs].sort()) {
+        if (/^\d{1,2}U$/i.test(div)) continue;
+        if (o[div] !== n[div]) lines.push(`${div}: confirmed ${o[div] ?? "?"} → ${n[div] ?? "?"}`);
+      }
+      return lines.length ? lines : null;
+    }
+
+    if (field === "division_team_counts") {
+      const o = JSON.parse(oldVal || "{}");
+      const n = JSON.parse(newVal || "{}");
+      const lines = [];
+      const allDivs = new Set([...Object.keys(o), ...Object.keys(n)]);
+      for (const div of [...allDivs].sort()) {
+        if (/^\d{1,2}U$/i.test(div)) continue;
+        if (o[div] !== n[div]) lines.push(`${div}: teams ${o[div] ?? "?"} → ${n[div] ?? "?"}`);
+      }
+      return lines.length ? lines : null;
+    }
+
+    return [`${field.replace(/_/g, " ")}: ${oldVal || "(none)"} → ${newVal || "(none)"}`];
+  } catch (_e) {
+    return [`${field.replace(/_/g, " ")}: updated`];
+  }
+}
+
 async function loadChanges() {
   changesLoaded = true;
   const changes = await api("/api/changes");
-  changesEl.innerHTML = changes.length ? "" : '<p class="subtle">No changes recorded yet.</p>';
+  changesEl.innerHTML = "";
 
-  // Recent changes summary banner (last 6 hours)
+  if (!changes.length) {
+    changesEl.innerHTML = '<p class="subtle">No changes recorded yet.</p>';
+    const recentBannerEmpty = document.querySelector("#recentChangesBanner");
+    if (recentBannerEmpty) recentBannerEmpty.hidden = true;
+    return;
+  }
+
+  // Group by tournament + time bucket (minute granularity)
+  const groups = new Map();
+  for (const change of changes) {
+    const timeBucket = (change.detected_at || "").slice(0, 16);
+    const key = `${change.tournament_id || change.source_id}__${timeBucket}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        name: change.tournament_name || change.source_id || "Unknown tournament",
+        detectedAt: change.detected_at,
+        lines: [],
+      });
+    }
+    const parsed = parseChangeLines(change.field, change.old_value, change.new_value);
+    if (parsed) groups.get(key).lines.push(...parsed);
+  }
+
+  // Recent changes banner (last 6 hours)
   const recentBanner = document.querySelector("#recentChangesBanner");
   if (recentBanner) {
     const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
-    const recentChanges = changes.filter((change) => {
-      if (!change.detected_at) return false;
-      const ts = new Date(change.detected_at).getTime();
-      return !isNaN(ts) && ts >= sixHoursAgo;
+    const recentGroups = [...groups.values()].filter(g => {
+      if (!g.detectedAt) return false;
+      return new Date(g.detectedAt).getTime() >= sixHoursAgo && g.lines.length > 0;
     });
-    if (recentChanges.length > 0) {
+    if (recentGroups.length > 0) {
       recentBanner.hidden = false;
       recentBanner.innerHTML = `
         <div class="recent-changes-banner">
           <div class="recent-changes-title">Recent changes (last 6 hours)</div>
           <ul class="recent-changes-list">
-            ${recentChanges.map((change) => `
+            ${recentGroups.map(g => `
               <li>
-                <strong>${escapeHtml(change.tournament_name || change.source_id)}</strong>
-                <span class="subtle">— ${escapeHtml(change.field)}: ${escapeHtml(change.old_value || "new")} → ${escapeHtml(change.new_value || "")}</span>
+                <strong>${escapeHtml(g.name)}</strong>
+                ${g.lines.length ? `<span class="subtle"> — ${escapeHtml(g.lines[0])}</span>` : ""}
               </li>
             `).join("")}
           </ul>
@@ -775,13 +895,18 @@ async function loadChanges() {
     }
   }
 
-  for (const change of changes) {
+  for (const group of groups.values()) {
+    if (!group.lines.length) continue;
     const div = document.createElement("div");
     div.className = "change";
     div.innerHTML = `
-      <div><strong>${change.tournament_name || change.source_id}</strong></div>
-      <div class="subtle">${change.field}: ${change.old_value || "new"} -> ${change.new_value || ""}</div>
-      <div class="subtle">${change.detected_at}</div>
+      <div class="change-header">
+        <strong class="change-tournament">${escapeHtml(group.name)}</strong>
+        <span class="change-time subtle">${escapeHtml(formatRelativeTime(group.detectedAt || ""))}</span>
+      </div>
+      <ul class="change-lines">
+        ${group.lines.map(l => `<li>${escapeHtml(l)}</li>`).join("")}
+      </ul>
     `;
     changesEl.appendChild(div);
   }
