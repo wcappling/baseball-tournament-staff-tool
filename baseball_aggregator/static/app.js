@@ -755,7 +755,8 @@ function formatRelativeTime(isoStr) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function parseChangeLines(field, oldVal, newVal) {
+function parseChangeLines(field, oldVal, newVal, agePrefix = "") {
+  const matchesAge = div => !agePrefix || div.toUpperCase().startsWith(agePrefix.toUpperCase());
   try {
     if (field === "registered_teams") {
       const o = Number(oldVal), n = Number(newVal);
@@ -774,6 +775,7 @@ function parseChangeLines(field, oldVal, newVal) {
       const allDivs = new Set([...Object.keys(oldDivs), ...Object.keys(newDivs)]);
       for (const div of [...allDivs].sort()) {
         if (/^\d{1,2}U$/i.test(div)) continue;
+        if (!matchesAge(div)) continue;
         const oldTeams = new Map((oldDivs[div] || []).map(t => [
           (t.team_name || String(t)).toLowerCase(), t.team_name || String(t)
         ]));
@@ -802,6 +804,7 @@ function parseChangeLines(field, oldVal, newVal) {
       const allDivs = new Set([...Object.keys(oldD), ...Object.keys(newD)]);
       for (const div of [...allDivs].sort()) {
         if (/^\d{1,2}U$/i.test(div)) continue;
+        if (!matchesAge(div)) continue;
         const o = oldD[div] || {};
         const n = newD[div] || {};
         const allKeys = new Set([...Object.keys(o), ...Object.keys(n)]);
@@ -826,6 +829,7 @@ function parseChangeLines(field, oldVal, newVal) {
       const allDivs = new Set([...Object.keys(o), ...Object.keys(n)]);
       for (const div of [...allDivs].sort()) {
         if (/^\d{1,2}U$/i.test(div)) continue;
+        if (!matchesAge(div)) continue;
         if (o[div] !== n[div]) lines.push(`${div}: confirmed ${o[div] ?? "?"} → ${n[div] ?? "?"}`);
       }
       return lines.length ? lines : null;
@@ -838,6 +842,7 @@ function parseChangeLines(field, oldVal, newVal) {
       const allDivs = new Set([...Object.keys(o), ...Object.keys(n)]);
       for (const div of [...allDivs].sort()) {
         if (/^\d{1,2}U$/i.test(div)) continue;
+        if (!matchesAge(div)) continue;
         if (o[div] !== n[div]) lines.push(`${div}: teams ${o[div] ?? "?"} → ${n[div] ?? "?"}`);
       }
       return lines.length ? lines : null;
@@ -873,7 +878,8 @@ async function loadChanges() {
         lines: [],
       });
     }
-    const parsed = parseChangeLines(change.field, change.old_value, change.new_value);
+    const agePrefix = currentTeamSettings?.target_age_division || "";
+    const parsed = parseChangeLines(change.field, change.old_value, change.new_value, agePrefix);
     if (parsed) groups.get(key).lines.push(...parsed);
   }
 
