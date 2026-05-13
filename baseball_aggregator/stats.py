@@ -307,6 +307,28 @@ def team_analysis_records(
                 if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
                     team_map[key]["sources"][source] = {"wins": wins, "losses": losses, "ties": ties}
 
+    # Augment team_map from team_records table before building results
+    if team_id:
+        from baseball_aggregator.storage import get_team_records
+        effective_season = season or current_season_year()
+        unified = get_team_records(conn, team_id, season=effective_season)
+        unified_age = [
+            r for r in unified
+            if (r.get("age_division") or "").upper().startswith(age_prefix)
+            or age_prefix in (r.get("age_division") or "").upper()
+        ]
+        for r in unified_age:
+            raw_name: str = r["team_name"] or ""
+            key = raw_name.strip().lower()
+            if key not in team_map:
+                continue
+            src = r["source"]
+            wins, losses, ties = int(r["wins"]), int(r["losses"]), int(r["ties"])
+            total = wins + losses + ties
+            existing = team_map[key]["sources"].get(src)
+            if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
+                team_map[key]["sources"][src] = {"wins": wins, "losses": losses, "ties": ties}
+
     results: list[dict[str, Any]] = []
     for data in team_map.values():
         sources = data["sources"]
@@ -341,28 +363,6 @@ def team_analysis_records(
             "tournament_count": len(appearances),
             "appearances": appearances,
         })
-
-    # Augment records from team_records table when available (more accurate than division_teams)
-    if team_id:
-        from baseball_aggregator.storage import get_team_records
-        effective_season = season or current_season_year()
-        unified = get_team_records(conn, team_id, season=effective_season)
-        unified_age = [
-            r for r in unified
-            if (r.get("age_division") or "").upper().startswith(age_prefix)
-            or age_prefix in (r.get("age_division") or "").upper()
-        ]
-        for r in unified_age:
-            raw_name: str = r["team_name"] or ""
-            key = raw_name.strip().lower()
-            if key not in team_map:
-                continue
-            src = r["source"]
-            wins, losses, ties = int(r["wins"]), int(r["losses"]), int(r["ties"])
-            total = wins + losses + ties
-            existing = team_map[key]["sources"].get(src)
-            if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
-                team_map[key]["sources"][src] = {"wins": wins, "losses": losses, "ties": ties}
 
     results.sort(key=lambda x: (-x["win_pct"], -x["total_games"]))
 

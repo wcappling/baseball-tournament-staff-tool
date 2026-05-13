@@ -17,6 +17,7 @@ from baseball_aggregator.storage import connect, init_db
 
 def test_auth_blocks_api_and_allows_login_and_static(monkeypatch):
     monkeypatch.setenv("STAFF_TOOL_PASSWORD", "staff-pass")
+    monkeypatch.setenv("ADMIN_PASSWORD", "admin-pass")
     monkeypatch.setenv("SESSION_SECRET", "test-secret-value-that-is-long-enough")
 
     with TestClient(app) as client:
@@ -25,9 +26,9 @@ def test_auth_blocks_api_and_allows_login_and_static(monkeypatch):
 
         bad = client.post("/login", data={"password": "wrong"})
         assert bad.status_code == 200
-        assert "Password did not match" in bad.text
+        assert "did not match" in bad.text
 
-        good = client.post("/login", data={"password": "staff-pass"}, follow_redirects=False)
+        good = client.post("/login", data={"password": "admin-pass"}, follow_redirects=False)
         assert good.status_code == 303
         assert "baseball_staff_session" in good.headers["set-cookie"]
 
@@ -49,6 +50,7 @@ def test_hosted_mode_requires_auth_secret_and_data_dir(monkeypatch):
     monkeypatch.delenv("STAFF_TOOL_PASSWORD", raising=False)
     monkeypatch.delenv("SESSION_SECRET", raising=False)
     monkeypatch.delenv("STAFF_TOOL_DATA_DIR", raising=False)
+    monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
 
     try:
         require_hosted_config()
@@ -60,10 +62,12 @@ def test_hosted_mode_requires_auth_secret_and_data_dir(monkeypatch):
     assert "STAFF_TOOL_PASSWORD" in message
     assert "SESSION_SECRET" in message
     assert "STAFF_TOOL_DATA_DIR" in message
+    assert "ADMIN_PASSWORD" in message
 
     monkeypatch.setenv("STAFF_TOOL_PASSWORD", "staff-pass")
     monkeypatch.setenv("SESSION_SECRET", "test-secret-value-that-is-long-enough")
     monkeypatch.setenv("STAFF_TOOL_DATA_DIR", str(Path("data")))
+    monkeypatch.setenv("ADMIN_PASSWORD", "admin-pass")
     require_hosted_config()
 
 

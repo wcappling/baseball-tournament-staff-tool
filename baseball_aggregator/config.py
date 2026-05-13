@@ -35,6 +35,12 @@ def auth_enabled() -> bool:
     return bool(os.getenv("STAFF_TOOL_PASSWORD")) or is_hosted_mode()
 
 
+def get_admin_password() -> str:
+    """Password required to log in as the default admin account.
+    Set ADMIN_PASSWORD on Railway to control admin access via env var."""
+    return os.getenv("ADMIN_PASSWORD", "")
+
+
 def hosted_jobs_enabled() -> bool:
     value = os.getenv("STAFF_TOOL_ENABLE_HOSTED_JOBS")
     if value is not None:
@@ -63,7 +69,7 @@ def require_hosted_config() -> None:
 
     missing = [
         name
-        for name in ("STAFF_TOOL_PASSWORD", "SESSION_SECRET", "STAFF_TOOL_DATA_DIR")
+        for name in ("STAFF_TOOL_PASSWORD", "SESSION_SECRET", "STAFF_TOOL_DATA_DIR", "ADMIN_PASSWORD")
         if not os.getenv(name)
     ]
     if missing:
