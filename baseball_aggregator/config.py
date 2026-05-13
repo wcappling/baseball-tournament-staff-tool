@@ -69,7 +69,7 @@ def require_hosted_config() -> None:
 
     missing = [
         name
-        for name in ("STAFF_TOOL_PASSWORD", "SESSION_SECRET", "STAFF_TOOL_DATA_DIR")
+        for name in ("STAFF_TOOL_PASSWORD", "SESSION_SECRET", "STAFF_TOOL_DATA_DIR", "ADMIN_PASSWORD")
         if not os.getenv(name)
     ]
     if missing:

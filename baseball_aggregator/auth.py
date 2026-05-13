@@ -121,8 +121,8 @@ async def handle_login(request: Request) -> Response:
     team_slug = payload.get("team_slug", [""])[0].strip().lower()
     password = payload.get("password", [""])[0]
     team_id = "default"
-    if team_slug == "default":
-        # Admin login: must match ADMIN_PASSWORD env var (required — no fallback to DB)
+    if team_slug == "default" or not team_slug:
+        # Admin login (explicit "default" slug or legacy blank slug): must match ADMIN_PASSWORD env var
         admin_pw = get_admin_password()
         if not admin_pw or not hmac.compare_digest(password, admin_pw):
             log.warning("Failed admin login attempt")
@@ -136,11 +136,6 @@ async def handle_login(request: Request) -> Response:
             return login_page("Team code or password did not match.")
         log.info("Successful web login for team %r (id=%s)", team_slug, team["id"])
         team_id = team["id"]
-    else:
-        expected = os.getenv("STAFF_TOOL_PASSWORD", "")
-        if not expected or not hmac.compare_digest(password, expected):
-            log.warning("Failed web login attempt (global password)")
-            return login_page("Password did not match.")
 
     response = RedirectResponse("/", status_code=303)
     response.set_cookie(
