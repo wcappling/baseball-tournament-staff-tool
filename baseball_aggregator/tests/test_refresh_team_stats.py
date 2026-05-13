@@ -12,6 +12,7 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
@@ -77,6 +78,17 @@ def _seed_shortlisted_usssa_tournament(team_id: str = "default") -> int:
         row = conn.execute("SELECT id FROM tournaments WHERE source = 'usssa'").fetchone()
         upsert_shortlist(conn, row["id"], {"status": "Interested"}, team_id=team_id)
         return int(row["id"])
+
+
+def _run(coro):
+    """Run a coroutine safely from a sync test.
+
+    _run() raises RuntimeError if another event loop (e.g. from
+    pytest-playwright) is already running on this thread.  Delegating to a
+    fresh worker thread avoids that constraint entirely.
+    """
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
 
 # ── Unit-ish tests (no DB) ─────────────────────────────────────────────────
@@ -174,7 +186,7 @@ def test_refresh_team_stats_marks_pg_unsupported_and_skips_disabled_sources(isol
         "baseball_aggregator.collectors.usssa.fetch_usssa_team_histories",
         side_effect=_fake_fetch,
     ):
-        result = asyncio.run(
+        result = _run(
             services.refresh_team_stats("default", enabled_sources=["usssa"])
         )
 
@@ -212,7 +224,7 @@ def test_refresh_team_stats_filters_usssa_records_to_shortlist(isolated_db):
         "baseball_aggregator.collectors.usssa.fetch_usssa_team_histories",
         side_effect=_fake_fetch,
     ):
-        result = asyncio.run(
+        result = _run(
             services.refresh_team_stats("default", enabled_sources=["usssa"])
         )
     assert result["stats"]["usssa"]["records_written"] == 1
@@ -228,7 +240,7 @@ def test_refresh_team_stats_records_stat_refresh_row(isolated_db):
         "baseball_aggregator.collectors.usssa.fetch_usssa_team_histories",
         side_effect=_fake_fetch,
     ):
-        asyncio.run(services.refresh_team_stats("default", enabled_sources=["usssa"]))
+        _run(services.refresh_team_stats("default", enabled_sources=["usssa"]))
 
     with connect() as conn:
         latest = get_latest_stat_refresh(conn, "default", "usssa")
@@ -240,7 +252,7 @@ def test_refresh_team_stats_records_stat_refresh_row(isolated_db):
 def test_refresh_team_stats_skip_when_lock_held(isolated_db):
     services._stats_refresh_lock.acquire()
     try:
-        result = asyncio.run(
+        result = _run(
             services.refresh_team_stats("default", enabled_sources=["usssa"])
         )
     finally:

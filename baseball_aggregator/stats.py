@@ -371,9 +371,7 @@ def team_analysis_records(
             if scraped_at:
                 sources_status[src] = "loaded" if scraped_at >= stale_cutoff else "stale"
             else:
-                # Record may have come from the division_teams fallback, which has
-                # no scraped_at — show 'loaded' if a record is present, else 'missing'.
-                sources_status[src] = "loaded" if src in sources else "missing"
+                sources_status[src] = "missing"
 
         appearances = [
             {**tournament_info[tid], "record": app_data["record"]}

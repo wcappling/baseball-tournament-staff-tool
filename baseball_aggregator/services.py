@@ -164,7 +164,12 @@ def _shortlisted_team_data(
         except (json.JSONDecodeError, TypeError):
             continue
         if row["source"] == usssa.SOURCE:
-            usssa_tournament_dicts.append({"division_teams": division_teams})
+            filtered_divisions = {
+                div: teams
+                for div, teams in division_teams.items()
+                if div.upper().startswith(age_prefix)
+            }
+            usssa_tournament_dicts.append({"division_teams": filtered_divisions})
         for division, teams in division_teams.items():
             if not division.upper().startswith(age_prefix):
                 continue
