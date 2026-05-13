@@ -508,6 +508,45 @@ def api_team_analysis(
         return stats.team_analysis_records(conn, age_division, team_id=team_id, season=season)
 
 
+@app.post("/api/team-analysis/refresh-stats")
+async def api_team_analysis_refresh_stats(request: Request):
+    """Hydrate team_records for the caller's shortlisted (Interested/Registered) teams.
+
+    Does NOT re-pull tournament listings.
+    """
+    if auth_enabled() and not get_web_team_id(request.cookies.get(COOKIE_NAME)):
+        raise HTTPException(status_code=403, detail={"code": "auth_required", "message": "Authentication required."})
+    team_id = _web_team_id(request)
+    with connect() as conn:
+        settings = get_team_settings(conn, team_id)
+    return await services.refresh_team_stats(team_id, enabled_sources=settings.get("enabled_sources"))
+
+
+@app.post("/api/team-analysis/refresh-full")
+async def api_team_analysis_refresh_full(request: Request):
+    """Full refresh: re-pull tournament listings, then hydrate team_records."""
+    if auth_enabled() and not get_web_team_id(request.cookies.get(COOKIE_NAME)):
+        raise HTTPException(status_code=403, detail={"code": "auth_required", "message": "Authentication required."})
+    team_id = _web_team_id(request)
+    with connect() as conn:
+        settings = get_team_settings(conn, team_id)
+    sources = settings.get("enabled_sources")
+    tournament_refresh = await asyncio.to_thread(services.refresh_sources, sources)
+    if isinstance(tournament_refresh, dict) and tournament_refresh.get("status") == "skipped":
+        return {
+            "skipped": True,
+            "tournament_refresh": tournament_refresh,
+            "message": tournament_refresh.get("message", "Background refresh in progress."),
+        }
+    stats_result = await services.refresh_team_stats(team_id, enabled_sources=sources)
+    return {
+        "skipped": stats_result.get("skipped", False),
+        "tournament_refresh": tournament_refresh,
+        "stats": stats_result.get("stats", {}),
+        "message": stats_result.get("message"),
+    }
+
+
 @app.get("/api/available-seasons")
 def api_available_seasons(request: Request):
     with connect() as conn:

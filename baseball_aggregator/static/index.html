@@ -403,6 +403,11 @@
           </label>
           <button id="analysisCompareBtn" type="button" class="inline-filter-btn inline-filter-btn--primary" hidden>Compare selected</button>
           <button id="analysisClearSelection" type="button" class="inline-filter-btn">Clear selection</button>
+          <div class="stats-refresh-group">
+            <button id="refreshStatsBtn" type="button" class="inline-filter-btn inline-filter-btn--primary">Refresh stats</button>
+            <button id="refreshStatsFullBtn" type="button" class="inline-filter-btn">Full refresh</button>
+            <span id="refreshStatsStatus" class="subtle" role="status" aria-live="polite"></span>
+          </div>
         </div>
         <div class="table-wrap">
           <table class="team-stats-table" id="teamAnalysisTable">

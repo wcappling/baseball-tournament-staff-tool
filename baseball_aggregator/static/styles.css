@@ -1728,3 +1728,35 @@ textarea {
   gap: 0;
   padding: 10px 12px;
 }
+
+/* ── Stats refresh button group on Interested/Registered Teams view ───────── */
+.stats-refresh-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+.stats-refresh-group #refreshStatsStatus {
+  font-size: 0.85em;
+}
+
+.stats-pill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.7em;
+  font-weight: 600;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+.stats-pill--missing {
+  background: #e6e6e6;
+  color: #555;
+}
+.stats-pill--stale {
+  background: #fff3cd;
+  color: #856404;
+}
