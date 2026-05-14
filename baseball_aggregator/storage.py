@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 _ALLOWED_TABLES: frozenset[str] = frozenset({
     "tournaments", "shortlist", "team_settings", "teams",
     "team_sessions", "team_records", "refresh_runs", "ncs_team_records",
+    "team_stat_refresh",
 })
 _ALLOWED_COLUMN_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,59}$")
 _DIVISION_DETAIL_NOISE_FIELDS: frozenset[str] = frozenset({"pending_entries", "deadline_passed"})
@@ -169,6 +170,20 @@ def init_db(conn: sqlite3.Connection) -> None:
             FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
             UNIQUE(team_id, source, team_name, season)
         );
+
+        CREATE TABLE IF NOT EXISTS team_stat_refresh (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id          TEXT NOT NULL,
+            source           TEXT NOT NULL,
+            started_at       TEXT NOT NULL,
+            finished_at      TEXT,
+            status           TEXT NOT NULL,
+            teams_refreshed  INTEGER NOT NULL DEFAULT 0,
+            message          TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_team_stat_refresh_lookup
+            ON team_stat_refresh(team_id, source, started_at DESC);
         """
     )
     _ensure_column(conn, "tournaments", "location", "TEXT")
@@ -672,6 +687,51 @@ def latest_refresh_runs(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         "SELECT * FROM refresh_runs ORDER BY started_at DESC, id DESC LIMIT 20"
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def record_stat_refresh_start(conn: sqlite3.Connection, team_id: str, source: str) -> int:
+    init_db(conn)
+    now = datetime.now(UTC).isoformat()
+    cursor = conn.execute(
+        "INSERT INTO team_stat_refresh(team_id, source, started_at, status) "
+        "VALUES (?, ?, ?, 'running')",
+        (team_id, source, now),
+    )
+    conn.commit()
+    return int(cursor.lastrowid)
+
+
+def record_stat_refresh_finish(
+    conn: sqlite3.Connection,
+    row_id: int,
+    status: str,
+    teams_refreshed: int = 0,
+    message: str = "",
+) -> None:
+    conn.execute(
+        "UPDATE team_stat_refresh "
+        "SET finished_at = ?, status = ?, teams_refreshed = ?, message = ? "
+        "WHERE id = ?",
+        (datetime.now(UTC).isoformat(), status, teams_refreshed, message, row_id),
+    )
+    conn.commit()
+
+
+def get_latest_stat_refresh(
+    conn: sqlite3.Connection,
+    team_id: str,
+    source: str,
+) -> dict[str, Any] | None:
+    row = conn.execute(
+        """
+        SELECT * FROM team_stat_refresh
+        WHERE team_id = ? AND source = ?
+        ORDER BY started_at DESC, id DESC
+        LIMIT 1
+        """,
+        (team_id, source),
+    ).fetchone()
+    return dict(row) if row else None
 
 
 def get_hydrated_tournament_teams(conn: sqlite3.Connection) -> list[tuple[str, str]]:

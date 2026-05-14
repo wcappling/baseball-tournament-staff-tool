@@ -1327,6 +1327,13 @@ function updateAnalysisCompareBtn() {
   if (analysisCompareBtnEl) analysisCompareBtnEl.hidden = analysisSelectedTeams.size === 0;
 }
 
+function statsPill(status) {
+  if (!status || status === "loaded" || status === "unsupported") return "";
+  if (status === "missing") return ' <span class="stats-pill stats-pill--missing" title="No stats loaded — click Refresh stats">missing</span>';
+  if (status === "stale") return ' <span class="stats-pill stats-pill--stale" title="Stats older than 7 days — click Refresh stats">stale</span>';
+  return "";
+}
+
 function renderTeamAnalysisRows(teams) {
   if (!teamAnalysisRowsEl) return;
   teamAnalysisRowsEl.innerHTML = "";
@@ -1359,13 +1366,14 @@ function renderTeamAnalysisRows(teams) {
 
     const tr = document.createElement("tr");
     if (isSelected) tr.classList.add("team-row-selected");
+    const status = team.sources_status || {};
     tr.innerHTML = `
       <td class="col-select" data-label="Select"><input type="checkbox" class="team-select-cb" data-name="${escapeHtml(team.team_name)}" ${isSelected ? "checked" : ""}></td>
       <td data-label="Team">${escapeHtml(team.team_name)}</td>
       <td data-label="City/State">${escapeHtml(team.city_state || "")}</td>
-      <td class="col-ncs record-cell" data-label="NCS">${escapeHtml(team.ncs_record || "—")}</td>
-      <td class="col-usssa record-cell" data-label="USSSA">${escapeHtml(team.usssa_record || "—")}</td>
-      <td class="col-pg record-cell" data-label="Perfect Game">${escapeHtml(team.perfect_game_record || "—")}</td>
+      <td class="col-ncs record-cell" data-label="NCS">${escapeHtml(team.ncs_record || "—")}${statsPill(status.ncs)}</td>
+      <td class="col-usssa record-cell" data-label="USSSA">${escapeHtml(team.usssa_record || "—")}${statsPill(status.usssa)}</td>
+      <td class="col-pg record-cell" data-label="Perfect Game">${escapeHtml(team.perfect_game_record || "—")}${statsPill(status.perfect_game)}</td>
       <td class="record-cell record-cumulative" data-label="Cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
       <td class="win-pct" data-label="Win%">${formatWinPct(team.win_pct)}</td>
       <td class="win-pct" data-label="Games">${team.total_games}</td>
@@ -1451,6 +1459,68 @@ if (analysisClearSelectionEl) analysisClearSelectionEl.addEventListener("click",
   updateAnalysisCompareBtn();
   renderTeamAnalysisRows(teamAnalysisData);
 });
+
+const refreshStatsBtnEl = document.querySelector("#refreshStatsBtn");
+const refreshStatsFullBtnEl = document.querySelector("#refreshStatsFullBtn");
+const refreshStatsStatusEl = document.querySelector("#refreshStatsStatus");
+
+function summarizeStatsResult(stats) {
+  if (!stats) return "";
+  const parts = [];
+  const ncs = stats.ncs;
+  if (ncs && ncs.status && ncs.status !== "skipped") {
+    if (ncs.status === "success" && ncs.teams_refreshed != null) {
+      parts.push(`NCS: ${ncs.teams_refreshed} teams`);
+    } else if (ncs.status !== "success") {
+      parts.push(`NCS: ${ncs.status}`);
+    }
+  }
+  const usssa = stats.usssa;
+  if (usssa && usssa.status && usssa.status !== "skipped") {
+    if (usssa.status === "success" && usssa.records_written != null) {
+      parts.push(`USSSA: ${usssa.records_written} records`);
+    } else if (usssa.status !== "success") {
+      parts.push(`USSSA: ${usssa.status}`);
+    }
+  }
+  return parts.join(" · ");
+}
+
+async function runStatsRefresh(path, runningLabel) {
+  if (!refreshStatsBtnEl) return;
+  const buttons = [refreshStatsBtnEl, refreshStatsFullBtnEl].filter(Boolean);
+  const originalLabels = buttons.map((b) => b.textContent);
+  buttons.forEach((b) => { b.disabled = true; });
+  if (refreshStatsBtnEl) refreshStatsBtnEl.textContent = runningLabel;
+  if (refreshStatsStatusEl) refreshStatsStatusEl.textContent = "";
+  try {
+    const data = await api(path, { method: "POST", body: JSON.stringify({}) });
+    if (data && data.skipped) {
+      if (refreshStatsStatusEl) refreshStatsStatusEl.textContent = data.message || "Background refresh in progress — try again in a minute.";
+    } else {
+      teamAnalysisLoaded = false;
+      await loadTeamAnalysis();
+      if (refreshStatsStatusEl) {
+        const summary = summarizeStatsResult(data && data.stats);
+        refreshStatsStatusEl.textContent = summary ? `Refreshed — ${summary}` : "Refreshed.";
+      }
+    }
+  } catch (err) {
+    if (refreshStatsStatusEl) refreshStatsStatusEl.textContent = `Refresh failed: ${err && err.message ? err.message : err}`;
+  } finally {
+    buttons.forEach((b, i) => {
+      b.disabled = false;
+      b.textContent = originalLabels[i];
+    });
+  }
+}
+
+if (refreshStatsBtnEl) {
+  refreshStatsBtnEl.addEventListener("click", () => runStatsRefresh("/api/team-analysis/refresh-stats", "Refreshing…"));
+}
+if (refreshStatsFullBtnEl) {
+  refreshStatsFullBtnEl.addEventListener("click", () => runStatsRefresh("/api/team-analysis/refresh-full", "Full refresh…"));
+}
 
 // Inline age selectors in each stats view
 if (analysisAgeFilterEl) {
