@@ -65,6 +65,8 @@ function sourceLabel(source) {
     ncs: "NCS",
     usssa: "USSSA",
     perfect_game: "Perfect Game",
+    grand_slam: "Grand Slam",
+    game7: "Game7",
   }[source] || source;
 }
 
@@ -122,6 +124,14 @@ function skillLevel(source, division) {
     if (d.includes("major")) return "Elite / National";
     if (d.includes("aaa"))   return "High Competitive";
     if (d.includes("aa"))    return "Middle Competitive";
+  } else if (source === "grand_slam") {
+    if (d.includes("aaa"))   return "High Competitive";
+    if (d.includes("aa"))    return "Middle Competitive";
+    if (/\ba\b/.test(d))     return "Developmental";
+  } else if (source === "game7") {
+    if (d.includes("d1") || d.includes("division 1")) return "High Competitive";
+    if (d.includes("d2") || d.includes("division 2")) return "Middle Competitive";
+    if (d.includes("d3") || d.includes("division 3")) return "Developmental";
   }
   return null;
 }
@@ -1065,6 +1075,8 @@ function renderTeamStatsRows(teams) {
       <td class="col-ncs record-cell" data-label="NCS">${escapeHtml(team.ncs_record || "—")}</td>
       <td class="col-usssa record-cell" data-label="USSSA">${escapeHtml(team.usssa_record || "—")}</td>
       <td class="col-pg record-cell" data-label="Perfect Game">${escapeHtml(team.perfect_game_record || "—")}</td>
+      <td class="col-gs record-cell" data-label="Grand Slam">${escapeHtml(team.grand_slam_record || "—")}</td>
+      <td class="col-game7 record-cell" data-label="Game7">${escapeHtml(team.game7_record || "—")}</td>
       <td class="record-cell record-cumulative" data-label="Cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
       <td class="win-pct" data-label="Win%">${formatWinPct(team.win_pct)}</td>
       <td class="win-pct" data-label="Games">${team.total_games}</td>
@@ -1374,6 +1386,8 @@ function renderTeamAnalysisRows(teams) {
       <td class="col-ncs record-cell" data-label="NCS">${escapeHtml(team.ncs_record || "—")}${statsPill(status.ncs)}</td>
       <td class="col-usssa record-cell" data-label="USSSA">${escapeHtml(team.usssa_record || "—")}${statsPill(status.usssa)}</td>
       <td class="col-pg record-cell" data-label="Perfect Game">${escapeHtml(team.perfect_game_record || "—")}${statsPill(status.perfect_game)}</td>
+      <td class="col-gs record-cell" data-label="Grand Slam">${escapeHtml(team.grand_slam_record || "—")}${statsPill(status.grand_slam)}</td>
+      <td class="col-game7 record-cell" data-label="Game7">${escapeHtml(team.game7_record || "—")}${statsPill(status.game7)}</td>
       <td class="record-cell record-cumulative" data-label="Cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
       <td class="win-pct" data-label="Win%">${formatWinPct(team.win_pct)}</td>
       <td class="win-pct" data-label="Games">${team.total_games}</td>

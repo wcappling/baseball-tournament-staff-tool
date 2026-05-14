@@ -1571,7 +1571,9 @@ textarea {
   /* Hide source-specific columns on mobile for cleaner view */
   .team-stats-table .col-ncs,
   .team-stats-table .col-usssa,
-  .team-stats-table .col-pg {
+  .team-stats-table .col-pg,
+  .team-stats-table .col-gs,
+  .team-stats-table .col-game7 {
     display: none;
   }
 
