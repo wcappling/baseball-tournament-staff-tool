@@ -15,7 +15,7 @@
       document.documentElement.setAttribute("data-theme", theme);
     }());
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20260514-org-expansion">
+  <link rel="stylesheet" href="/static/styles.css?v=20260514-source-multiselect">
 </head>
 <body>
 
@@ -204,16 +204,20 @@
             <span id="toolbarToggleLabel">Hide</span>
           </button>
         </div>
-        <label>Source
-          <select id="sourceFilter">
-            <option value="">All</option>
-            <option value="ncs">NCS</option>
-            <option value="usssa">USSSA</option>
-            <option value="perfect_game">Perfect Game</option>
-            <option value="grand_slam">Grand Slam</option>
-            <option value="game7">Game7</option>
-          </select>
-        </label>
+        <div class="filter-field division-filter">
+          <span class="filter-label">Source</span>
+          <button id="sourceMenuButton" class="select-like" type="button" aria-haspopup="true" aria-expanded="false">
+            All
+          </button>
+          <div id="sourceOptions" class="division-menu" hidden>
+            <label class="division-option"><input type="checkbox" value="" checked><span>All</span></label>
+            <label class="division-option"><input type="checkbox" value="ncs"><span>NCS</span></label>
+            <label class="division-option"><input type="checkbox" value="usssa"><span>USSSA</span></label>
+            <label class="division-option"><input type="checkbox" value="perfect_game"><span>Perfect Game</span></label>
+            <label class="division-option"><input type="checkbox" value="grand_slam"><span>Grand Slam</span></label>
+            <label class="division-option"><input type="checkbox" value="game7"><span>Game7</span></label>
+          </div>
+        </div>
         <label>Age
           <select id="ageFilter">
             <option value="6U">6U</option>
@@ -628,6 +632,6 @@
   </div>
 
   <script src="/static/utils.js?v=20260508"></script>
-  <script src="/static/app.js?v=20260514-org-expansion"></script>
+  <script src="/static/app.js?v=20260514-source-multiselect"></script>
 </body>
 </html>

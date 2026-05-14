@@ -278,7 +278,7 @@ def api_v1_update_settings(
 @app.get("/api/tournaments")
 def api_tournaments(
     request: Request,
-    source: str | None = None,
+    source: list[str] | None = Query(default=None),
     age: str | None = None,
     division: list[str] | None = Query(default=None),
     threshold: int | None = None,
@@ -308,7 +308,7 @@ def api_tournaments(
 
 @app.get("/api/v1/tournaments")
 def api_v1_tournaments(
-    source: str | None = None,
+    source: list[str] | None = Query(default=None),
     age: str | None = None,
     division: list[str] | None = Query(default=None),
     threshold: int | None = None,
@@ -359,14 +359,14 @@ def api_v1_tournament_detail(
 
 
 @app.get("/api/divisions")
-def api_divisions(source: str | None = None, age: str | None = None):
+def api_divisions(source: list[str] | None = Query(default=None), age: str | None = None):
     with connect() as conn:
         return list_divisions(conn, age=age, source=source)
 
 
 @app.get("/api/v1/divisions")
 def api_v1_divisions(
-    source: str | None = None,
+    source: list[str] | None = Query(default=None),
     age: str | None = None,
     session: dict[str, Any] = Depends(_native_session),
 ):

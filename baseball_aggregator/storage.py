@@ -503,9 +503,19 @@ def search_tournaments(
 
     clauses = []
     params: list[Any] = []
-    if source := filters.get("source"):
-        clauses.append("t.source = ?")
-        params.append(source)
+    sources = filters.get("source")
+    if sources:
+        if isinstance(sources, str):
+            sources = [sources]
+        sources = [s for s in sources if s]  # filter empty strings
+    if sources:
+        if len(sources) == 1:
+            clauses.append("t.source = ?")
+            params.append(sources[0])
+        else:
+            placeholders = ",".join("?" * len(sources))
+            clauses.append(f"t.source IN ({placeholders})")
+            params.extend(sources)
     if start_on_or_after := filters.get("start_on_or_after"):
         clauses.append("(t.start_date IS NULL OR t.start_date >= ?)")
         params.append(start_on_or_after)
@@ -585,13 +595,22 @@ def update_tournament_division_teams(
     conn.commit()
 
 
-def list_divisions(conn: sqlite3.Connection, age: str | None = None, source: str | None = None) -> list[str]:
+def list_divisions(conn: sqlite3.Connection, age: str | None = None, source: list[str] | str | None = None) -> list[str]:
     init_db(conn)
     clauses = []
     params: list[Any] = []
     if source:
-        clauses.append("source = ?")
-        params.append(source)
+        if isinstance(source, str):
+            source = [source]
+        source = [s for s in source if s]
+    if source:
+        if len(source) == 1:
+            clauses.append("source = ?")
+            params.append(source[0])
+        else:
+            placeholders = ",".join("?" * len(source))
+            clauses.append(f"source IN ({placeholders})")
+            params.extend(source)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = conn.execute(
         f"SELECT age_divisions, division_team_counts, division_details FROM tournaments {where}",

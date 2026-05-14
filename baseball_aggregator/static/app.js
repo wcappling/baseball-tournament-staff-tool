@@ -2,7 +2,8 @@ const rowsEl = document.querySelector("#tournamentRows");
 const declinedRowsEl = document.querySelector("#declinedRows");
 const declinedCountEl = document.querySelector("#declinedCount");
 const changesEl = document.querySelector("#changes");
-const sourceFilter = document.querySelector("#sourceFilter");
+const sourceMenuButton = document.querySelector("#sourceMenuButton");
+const sourceOptions = document.querySelector("#sourceOptions");
 const ageFilter = document.querySelector("#ageFilter");
 const divisionMenuButton = document.querySelector("#divisionMenuButton");
 const divisionOptions = document.querySelector("#divisionOptions");
@@ -499,7 +500,9 @@ async function loadAvailableSeasons() {
 async function loadDivisions() {
   const previous = selectedDivisionValues();
   const params = new URLSearchParams();
-  if (sourceFilter.value) params.set("source", sourceFilter.value);
+  for (const src of selectedSourceValues()) {
+    params.append("source", src);
+  }
   if (ageFilter.value) params.set("age", ageFilter.value);
   const divisions = await api(`/api/divisions?${params.toString()}`);
   divisionOptions.innerHTML = "";
@@ -527,6 +530,61 @@ function divisionOption(label, value, checked) {
   text.textContent = label;
   wrapper.append(input, text);
   return wrapper;
+}
+
+function selectedSourceValues() {
+  return [...sourceOptions.querySelectorAll('input[type="checkbox"]:checked')]
+    .map((input) => input.value)
+    .filter(Boolean);
+}
+
+function normalizeSourceSelection(event) {
+  const changed = event.target;
+  const allOption = sourceOptions.querySelector('input[value=""]');
+  const sourceInputs = [...sourceOptions.querySelectorAll('input[type="checkbox"]')]
+    .filter((input) => input.value);
+
+  if (changed === allOption && allOption.checked) {
+    for (const input of sourceInputs) input.checked = false;
+  } else if (changed && changed.value) {
+    if (allOption) allOption.checked = false;
+  }
+
+  if (!sourceInputs.some((input) => input.checked) && allOption) {
+    allOption.checked = true;
+  }
+  updateSourceButton();
+  loadDivisions();
+}
+
+function updateSourceButton() {
+  const selected = selectedSourceValues();
+  if (!selected.length) {
+    sourceMenuButton.textContent = "All";
+  } else if (selected.length === 1) {
+    const labels = { ncs: "NCS", usssa: "USSSA", perfect_game: "Perfect Game", grand_slam: "Grand Slam", game7: "Game7" };
+    sourceMenuButton.textContent = labels[selected[0]] || selected[0];
+  } else {
+    sourceMenuButton.textContent = `${selected.length} selected`;
+  }
+}
+
+function toggleSourceMenu() {
+  const nextOpen = sourceOptions.hidden;
+  sourceOptions.hidden = !nextOpen;
+  sourceMenuButton.setAttribute("aria-expanded", String(nextOpen));
+}
+
+function closeSourceMenu(event) {
+  if (
+    sourceOptions.hidden ||
+    sourceOptions.contains(event.target) ||
+    sourceMenuButton.contains(event.target)
+  ) {
+    return;
+  }
+  sourceOptions.hidden = true;
+  sourceMenuButton.setAttribute("aria-expanded", "false");
 }
 
 function selectedDivisionValues() {
@@ -723,7 +781,9 @@ function initTheme() {
 
 async function loadTournaments() {
   const params = new URLSearchParams();
-  if (sourceFilter.value) params.set("source", sourceFilter.value);
+  for (const src of selectedSourceValues()) {
+    params.append("source", src);
+  }
   if (ageFilter.value) params.set("age", ageFilter.value);
   for (const division of selectedDivisionValues()) {
     params.append("division", division);
@@ -944,10 +1004,14 @@ async function loadChanges() {
 
 document.querySelector("#applyFilters").addEventListener("click", loadTournaments);
 if (includeUnknownFilter) includeUnknownFilter.addEventListener("change", renderRows);
-sourceFilter.addEventListener("change", loadDivisions);
 ageFilter.addEventListener("change", loadDivisions);
+sourceMenuButton.addEventListener("click", toggleSourceMenu);
+for (const input of sourceOptions.querySelectorAll('input[type="checkbox"]')) {
+  input.addEventListener("change", normalizeSourceSelection);
+}
 divisionMenuButton.addEventListener("click", toggleDivisionMenu);
 document.addEventListener("click", (event) => {
+  closeSourceMenu(event);
   closeDivisionMenu(event);
   // Close mobile nav on outside click (mobileNav ref wired below)
   const nav = document.querySelector("#mobileNav");
@@ -958,6 +1022,8 @@ document.addEventListener("click", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    sourceOptions.hidden = true;
+    sourceMenuButton.setAttribute("aria-expanded", "false");
     divisionOptions.hidden = true;
     divisionMenuButton.setAttribute("aria-expanded", "false");
   }
