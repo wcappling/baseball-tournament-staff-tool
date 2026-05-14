@@ -211,6 +211,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     _seed_known_team_theme_defaults(conn)
     _backfill_missing_distances(conn)
     _ensure_ncs_team_records_table(conn)
+    _backfill_enabled_sources(conn)
     conn.commit()
 
 
@@ -952,6 +953,50 @@ def _ensure_ncs_team_records_table(conn: sqlite3.Connection) -> None:
     """Create ncs_team_records table if it doesn't exist (idempotent)."""
     from baseball_aggregator.scrapers.ncs_teams import init_ncs_team_records_table
     init_ncs_team_records_table(conn)
+
+
+_LEGACY_DEFAULT_SOURCES = {"ncs", "usssa", "perfect_game"}
+
+
+def _backfill_enabled_sources(conn: sqlite3.Connection) -> None:
+    """Append newly-supported sources to settings that were using the old defaults.
+
+    Only updates rows whose enabled_sources is a superset of the previous
+    defaults (ncs/usssa/perfect_game), which indicates they were the old
+    default rather than a deliberately-restricted subset.
+    """
+    new_sources: list[str] = [
+        s for s in DEFAULT_SETTINGS["enabled_sources"] if s not in _LEGACY_DEFAULT_SOURCES
+    ]
+    if not new_sources:
+        return
+
+    def _maybe_merge(current: list[str]) -> list[str] | None:
+        if not _LEGACY_DEFAULT_SOURCES.issubset(current):
+            return None
+        merged = current + [s for s in new_sources if s not in current]
+        return merged if merged != current else None
+
+    # Global settings table
+    row = conn.execute("SELECT value FROM settings WHERE key = 'enabled_sources'").fetchone()
+    if row:
+        merged = _maybe_merge(json.loads(row["value"]))
+        if merged is not None:
+            conn.execute(
+                "UPDATE settings SET value = ? WHERE key = 'enabled_sources'",
+                (json.dumps(merged),),
+            )
+
+    # Per-team settings table
+    for ts_row in conn.execute(
+        "SELECT team_id, value FROM team_settings WHERE key = 'enabled_sources'"
+    ).fetchall():
+        merged = _maybe_merge(json.loads(ts_row["value"]))
+        if merged is not None:
+            conn.execute(
+                "UPDATE team_settings SET value = ? WHERE team_id = ? AND key = 'enabled_sources'",
+                (json.dumps(merged), ts_row["team_id"]),
+            )
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
