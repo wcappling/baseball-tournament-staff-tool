@@ -49,7 +49,6 @@ def fetch_tournaments(
                 "zip": HUNTSVILLE_ZIP,
                 "radius": radius_miles,
                 "ll": f"{HUNTSVILLE_LAT},{HUNTSVILLE_LNG}",
-                "location": 2,
             }
             response = client.get(BASE_URL, params=params)
             response.raise_for_status()
