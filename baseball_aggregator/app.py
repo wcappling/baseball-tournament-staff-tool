@@ -516,6 +516,45 @@ def api_available_seasons(request: Request):
     return {"seasons": seasons, "current": stats.current_season_year()}
 
 
+@app.get("/api/v1/team-stats")
+def api_v1_team_stats(
+    age: str | None = None,
+    season: str | None = None,
+    session: dict[str, Any] = Depends(_native_session),
+):
+    with connect() as conn:
+        team_id = session["team_id"]
+        settings = get_team_settings(conn, team_id)
+        age_division = (age or settings["target_age_division"]).upper()
+        teams = stats.aggregate_team_records(conn, team_id, age_division, season=season)
+    return {
+        "age": age_division,
+        "season": season or stats.current_season_year(),
+        "teams": teams,
+        "total_teams": len(teams),
+    }
+
+
+@app.get("/api/v1/team-analysis")
+def api_v1_team_analysis(
+    age: str | None = None,
+    season: str | None = None,
+    session: dict[str, Any] = Depends(_native_session),
+):
+    with connect() as conn:
+        team_id = session["team_id"]
+        settings = get_team_settings(conn, team_id)
+        age_division = (age or settings["target_age_division"]).upper()
+        return stats.team_analysis_records(conn, age_division, team_id=team_id, season=season)
+
+
+@app.get("/api/v1/available-seasons")
+def api_v1_available_seasons(session: dict[str, Any] = Depends(_native_session)):
+    with connect() as conn:
+        seasons = get_available_seasons(conn, session["team_id"])
+    return {"seasons": seasons, "current": stats.current_season_year()}
+
+
 @app.post("/api/ncs-teams/scrape")
 def api_ncs_teams_scrape(
     request: Request,
