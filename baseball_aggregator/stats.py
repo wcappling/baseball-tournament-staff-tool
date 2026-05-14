@@ -95,7 +95,7 @@ def aggregate_team_records(
 
     # --- Fallback path: division_teams JSON (sources not yet in team_records) ---
     # Only runs for sources that have no data in team_records yet.
-    fallback_sources = {"ncs", "usssa", "perfect_game"} - sources_in_unified
+    fallback_sources = {"ncs", "usssa", "perfect_game", "grand_slam", "game7"} - sources_in_unified
     if fallback_sources:
         rows = conn.execute(
             "SELECT source, division_teams FROM tournaments WHERE division_teams != '{}'",
@@ -161,6 +161,8 @@ def aggregate_team_records(
             "ncs_record":           src_record("ncs"),
             "usssa_record":         src_record("usssa"),
             "perfect_game_record":  src_record("perfect_game"),
+            "grand_slam_record":    src_record("grand_slam"),
+            "game7_record":         src_record("game7"),
             "cumulative_record":    _format_record(total_wins, total_losses, total_ties),
             "win_pct":              round(win_pct, 4),
             "total_games":          total_games,
@@ -357,6 +359,8 @@ def team_analysis_records(
             "ncs_record": src_record("ncs"),
             "usssa_record": src_record("usssa"),
             "perfect_game_record": src_record("perfect_game"),
+            "grand_slam_record": src_record("grand_slam"),
+            "game7_record": src_record("game7"),
             "cumulative_record": _format_record(total_wins, total_losses, total_ties),
             "win_pct": round(win_pct, 4),
             "total_games": total_games,
