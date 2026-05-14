@@ -98,7 +98,7 @@ def aggregate_team_records(
 
     # --- Fallback path: division_teams JSON (sources not yet in team_records) ---
     # Only runs for sources that have no data in team_records yet.
-    fallback_sources = {"ncs", "usssa", "perfect_game", "grand_slam", "game7"} - sources_in_unified
+    fallback_sources = {"ncs", "usssa", "perfect_game"} - sources_in_unified
     if fallback_sources:
         rows = conn.execute(
             "SELECT source, division_teams FROM tournaments WHERE division_teams != '{}'",
