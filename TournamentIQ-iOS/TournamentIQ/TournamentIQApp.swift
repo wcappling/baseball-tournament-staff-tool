@@ -2,26 +2,13 @@ import SwiftUI
 
 @main
 struct TournamentIQApp: App {
+    @State private var deps = AppDependencies()
+
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environment(deps)
+                .task { await deps.authSession.bootstrap(using: deps.authEndpoints) }
         }
     }
-}
-
-struct RootView: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            Text("Tournament IQ")
-                .font(.largeTitle.bold())
-            Text("Scaffold build")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-    }
-}
-
-#Preview {
-    RootView()
 }
