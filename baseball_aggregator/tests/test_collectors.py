@@ -256,7 +256,7 @@ def test_perfect_game_team_parser():
 
 
 def test_planned_sources_are_registered():
-    assert set(list_collectors()) == {"ncs", "usssa", "perfect_game"}
+    assert set(list_collectors()) == {"ncs", "usssa", "perfect_game", "grand_slam", "game7"}
 
 
 def test_date_parsing():

@@ -16,6 +16,8 @@ from pydantic import BaseModel, Field, field_validator
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from baseball_aggregator.scrapers import ncs_teams as _ncs_teams_scraper
+from baseball_aggregator.scrapers import grand_slam_teams as _grand_slam_teams_scraper
+from baseball_aggregator.scrapers import game7_teams as _game7_teams_scraper
 from baseball_aggregator.auth import (
     COOKIE_NAME,
     PasswordAuthMiddleware,
@@ -624,6 +626,74 @@ def api_ncs_teams_scrape(
         except Exception as exc:
             print(f"NCS scrape error: {exc}")
             return api_error("scrape_failed", "NCS scrape failed — check server logs", 502)
+
+    return result
+
+
+@app.post("/api/grand-slam-teams/scrape")
+def api_grand_slam_teams_scrape(
+    request: Request,
+    age: str | None = None,
+    state: str | None = None,
+    season_id: int | None = None,
+):
+    with connect() as conn:
+        team_id = _web_team_id(request)
+        settings = get_team_settings(conn, team_id)
+        age_division = (age or settings.get("target_age_division") or "8U").strip().upper()
+        if not state:
+            home_label: str = settings.get("home_label") or ""
+            m = re.search(r"\b([A-Z]{2})\s*$", home_label.upper())
+            state = m.group(1) if m else "AL"
+        scrape_season_id = season_id or _grand_slam_teams_scraper.DEFAULT_SEASON_ID
+
+        try:
+            result = _grand_slam_teams_scraper.scrape_grand_slam_teams(
+                conn,
+                age_division=age_division,
+                season_id=scrape_season_id,
+                state=state,
+                team_id=team_id,
+            )
+        except ValueError as exc:
+            return api_error("invalid_parameter", str(exc), 400)
+        except Exception as exc:
+            print(f"Grand Slam scrape error: {exc}")
+            return api_error("scrape_failed", "Grand Slam scrape failed — check server logs", 502)
+
+    return result
+
+
+@app.post("/api/game7-teams/scrape")
+def api_game7_teams_scrape(
+    request: Request,
+    age: str | None = None,
+    state: str | None = None,
+    season_id: int | None = None,
+):
+    with connect() as conn:
+        team_id = _web_team_id(request)
+        settings = get_team_settings(conn, team_id)
+        age_division = (age or settings.get("target_age_division") or "8U").strip().upper()
+        if not state:
+            home_label: str = settings.get("home_label") or ""
+            m = re.search(r"\b([A-Z]{2})\s*$", home_label.upper())
+            state = m.group(1) if m else "TN"
+        scrape_season_id = season_id or _game7_teams_scraper.DEFAULT_SEASON_ID
+
+        try:
+            result = _game7_teams_scraper.scrape_game7_teams(
+                conn,
+                age_division=age_division,
+                season_id=scrape_season_id,
+                state=state,
+                team_id=team_id,
+            )
+        except ValueError as exc:
+            return api_error("invalid_parameter", str(exc), 400)
+        except Exception as exc:
+            print(f"Game7 scrape error: {exc}")
+            return api_error("scrape_failed", "Game7 scrape failed — check server logs", 502)
 
     return result
 
