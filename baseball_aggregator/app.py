@@ -600,7 +600,7 @@ def api_game7_teams_scrape(
         if not state:
             home_label: str = settings.get("home_label") or ""
             m = re.search(r"\b([A-Z]{2})\s*$", home_label.upper())
-            state = m.group(1) if m else "AL"
+            state = m.group(1) if m else "TN"
         scrape_season_id = season_id or _game7_teams_scraper.DEFAULT_SEASON_ID
 
         try:
