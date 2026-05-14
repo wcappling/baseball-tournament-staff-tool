@@ -259,6 +259,83 @@ def test_planned_sources_are_registered():
     assert set(list_collectors()) == {"ncs", "usssa", "perfect_game", "grand_slam", "game7"}
 
 
+# ── Grand Slam collector tests ──────────────────────────────────────────────
+
+from baseball_aggregator.collectors.grand_slam import (
+    parse_whos_coming as gs_parse_whos_coming,
+    whos_coming_url as gs_whos_coming_url,
+)
+from baseball_aggregator.models import Tournament
+
+
+def _gs_teams_html() -> str:
+    return (FIXTURES / "grand_slam_teams_sample.html").read_text(encoding="utf-8")
+
+
+def test_grand_slam_whos_coming_url():
+    t = Tournament(
+        source="grand_slam",
+        source_id="4171",
+        name="Test",
+        detail_url="https://www.grandslamtournaments.com/baseball/Events/Details/4171/test-event",
+    )
+    assert gs_whos_coming_url(t) == (
+        "https://www.grandslamtournaments.com/baseball/Events/Teams/4171/test-event"
+    )
+
+
+def test_grand_slam_whos_coming_url_empty_when_no_details_path():
+    t = Tournament(source="grand_slam", source_id="1", name="X", detail_url="https://example.com/other")
+    assert gs_whos_coming_url(t) == ""
+
+
+def test_grand_slam_parse_whos_coming_division_counts():
+    counts, _ = gs_parse_whos_coming(_gs_teams_html())
+    assert counts["8U-OPEN KP"] == 3   # 3 real teams (2 Open rows skipped)
+    assert counts["8U-OPEN"] == 1
+    assert counts["9U"] == 2           # bare age key — not double-counted
+    # 8U aggregate: 3 (8U-OPEN KP) + 1 (8U-OPEN) = 4
+    assert counts["8U"] == 4
+    # 9U is bare key so should NOT produce a separate "9U" aggregate beyond itself
+    assert counts.get("9U", 0) == 2
+
+
+def test_grand_slam_parse_whos_coming_team_rows():
+    counts, teams = gs_parse_whos_coming(_gs_teams_html())
+    # 8U-OPEN KP has 3 teams, Open rows excluded
+    assert len(teams["8U-OPEN KP"]) == 3
+    names = [t["team_name"] for t in teams["8U-OPEN KP"]]
+    assert "Alpha 8U" in names
+    assert "Beta 8U" in names
+    assert "Gamma 8U" in names
+    assert "Open" not in names
+
+    # Records are parsed correctly
+    alpha = next(t for t in teams["8U-OPEN KP"] if t["team_name"] == "Alpha 8U")
+    assert alpha["record"] == "5-2-0"
+    assert alpha["city_state"] == "Huntsville, AL"
+    assert alpha["detail_url"] == "https://www.grandslamtournaments.com/baseball/Teams/Details/28001/alpha-8u"
+
+    beta = next(t for t in teams["8U-OPEN KP"] if t["team_name"] == "Beta 8U")
+    assert beta["record"] == "3-4-1"
+
+
+def test_grand_slam_parse_whos_coming_aggregate_rollup():
+    counts, teams = gs_parse_whos_coming(_gs_teams_html())
+    # 8U aggregate should contain teams from both 8U-OPEN KP and 8U-OPEN
+    assert len(teams["8U"]) == 4
+    all_names = [t["team_name"] for t in teams["8U"]]
+    assert "Alpha 8U" in all_names
+    assert "Zeta 8U" in all_names
+
+
+def test_grand_slam_parse_whos_coming_no_double_count_for_bare_age_key():
+    counts, teams = gs_parse_whos_coming(_gs_teams_html())
+    # "9U" is a bare age key — the count should be 2, not 4 (double-counted)
+    assert counts["9U"] == 2
+    assert len(teams["9U"]) == 2
+
+
 def test_date_parsing():
     today = date(2026, 4, 22)
     assert parse_date_range("Apr 25", today) == (date(2026, 4, 25), date(2026, 4, 25))

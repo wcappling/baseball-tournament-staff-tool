@@ -467,6 +467,12 @@ def upsert_tournaments(conn: sqlite3.Connection, tournaments: list[Tournament]) 
             )
         else:
             updated += 1
+            # Preserve existing enriched team data when the new scrape didn't fetch teams
+            # (e.g. enrichment HTTP error during this refresh run).
+            if payload["division_teams"] == "{}" and existing["division_teams"] not in ("{}", None, ""):
+                payload["division_teams"] = existing["division_teams"]
+            if payload["division_team_counts"] == "{}" and existing["division_team_counts"] not in ("{}", None, ""):
+                payload["division_team_counts"] = existing["division_team_counts"]
             set_clause = ", ".join(f"{column} = ?" for column in payload)
             conn.execute(
                 f"UPDATE tournaments SET {set_clause}, last_seen_at = ? WHERE id = ?",
