@@ -201,8 +201,9 @@ def parse_whos_coming(html: str) -> tuple[dict[str, int], dict[str, list[dict[st
         age_match = re.match(r"^(\d{1,2}U)\b", division, re.IGNORECASE)
         if age_match:
             age_key = age_match.group(1).upper()
-            counts[age_key] = counts.get(age_key, 0) + count
-            teams_by_division.setdefault(age_key, []).extend(teams)
+            if age_key != division.upper():
+                counts[age_key] = counts.get(age_key, 0) + count
+                teams_by_division.setdefault(age_key, []).extend(teams)
 
     return counts, teams_by_division
 
