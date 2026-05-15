@@ -284,8 +284,14 @@ def test_grand_slam_whos_coming_url():
     )
 
 
-def test_grand_slam_whos_coming_url_empty_when_no_details_path():
-    t = Tournament(source="grand_slam", source_id="1", name="X", detail_url="https://example.com/other")
+def test_grand_slam_whos_coming_url_fallback_uses_source_id():
+    # When detail_url doesn't contain /Events/Details/, fall back to source_id
+    t = Tournament(source="grand_slam", source_id="4171", name="X", detail_url="")
+    assert gs_whos_coming_url(t) == "https://www.grandslamtournaments.com/baseball/Events/Teams/4171/"
+
+
+def test_grand_slam_whos_coming_url_empty_when_no_source_id():
+    t = Tournament(source="grand_slam", source_id="", name="X", detail_url="")
     assert gs_whos_coming_url(t) == ""
 
 
