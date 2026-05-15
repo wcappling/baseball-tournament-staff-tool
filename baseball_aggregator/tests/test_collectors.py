@@ -441,6 +441,7 @@ def test_gs_actual_detail_urls_absolute():
                 )
 
 
+
 def test_date_parsing():
     today = date(2026, 4, 22)
     assert parse_date_range("Apr 25", today) == (date(2026, 4, 25), date(2026, 4, 25))
