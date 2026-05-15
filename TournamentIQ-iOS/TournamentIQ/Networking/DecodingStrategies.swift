@@ -3,6 +3,7 @@ import Foundation
 enum DecodingStrategies {
     static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let raw = try container.decode(String.self)
@@ -19,6 +20,7 @@ enum DecodingStrategies {
 
     static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.dateEncodingStrategy = .iso8601
         return encoder
     }

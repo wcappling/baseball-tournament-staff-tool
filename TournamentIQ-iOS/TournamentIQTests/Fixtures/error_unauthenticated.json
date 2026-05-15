@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "authentication_required",
+    "message": "Bearer token required."
+  }
+}

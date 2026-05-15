@@ -35,6 +35,11 @@ targets:
     platform: iOS
     sources:
       - path: TournamentIQTests
+        excludes:
+          - "Fixtures/**"
+      - path: TournamentIQTests/Fixtures
+        type: folder
+        buildPhase: resources
     dependencies:
       - target: TournamentIQ
 

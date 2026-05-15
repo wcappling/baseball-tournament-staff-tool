@@ -1,0 +1,137 @@
+[
+  {
+    "id": 1,
+    "source": "ncs",
+    "source_id": "fixture-1",
+    "name": "Spring Classic",
+    "detail_url": "https://example.com/spring",
+    "location": "Madison, AL",
+    "director": "Jane Doe",
+    "start_date": "2026-06-12",
+    "end_date": "2026-06-14",
+    "age_divisions": [
+      "8U",
+      "8U OPEN",
+      "9U",
+      "9U AA"
+    ],
+    "registered_teams": 12,
+    "division_team_counts": {
+      "8U OPEN": 6,
+      "9U AA": 6
+    },
+    "division_confirmed_counts": {
+      "8U OPEN": 4,
+      "9U AA": 5
+    },
+    "division_details": {
+      "8U OPEN": {
+        "format": "pool+bracket"
+      }
+    },
+    "division_teams": {
+      "8U OPEN": [
+        {
+          "number": 1,
+          "team_name": "Hawks 8U",
+          "confirmed": true,
+          "division": "8U OPEN",
+          "city_state": "Huntsville, AL",
+          "record": "12-3"
+        },
+        {
+          "number": 2,
+          "team_name": "Rays 8U",
+          "confirmed": false,
+          "division": "8U OPEN",
+          "city_state": "Madison, AL",
+          "record": "8-5"
+        }
+      ]
+    },
+    "team_count_scope": "division",
+    "stature": "Regional",
+    "format": "pool+bracket",
+    "tags": [
+      "points",
+      "shootout"
+    ],
+    "logo_url": null,
+    "distance_miles": 9.5,
+    "fetched_at": "2026-05-15T01:38:58.285332+00:00",
+    "first_seen_at": "2026-05-15T01:38:58.286390+00:00",
+    "last_seen_at": "2026-05-15T01:38:58.286390+00:00",
+    "shortlist_status": "Interested",
+    "shortlist_priority": 2,
+    "shortlist_notes": "front-runner",
+    "selected_age_divisions": [
+      {
+        "division": "8U OPEN",
+        "registered": 2,
+        "confirmed": 1,
+        "details": {
+          "format": "pool+bracket"
+        }
+      }
+    ],
+    "selected_age_teams": [
+      {
+        "number": 1,
+        "team_name": "Hawks 8U",
+        "confirmed": true,
+        "division": "8U OPEN",
+        "city_state": "Huntsville, AL",
+        "record": "12-3"
+      },
+      {
+        "number": 2,
+        "team_name": "Rays 8U",
+        "confirmed": false,
+        "division": "8U OPEN",
+        "city_state": "Madison, AL",
+        "record": "8-5"
+      }
+    ],
+    "selected_age_confirmed_count": 1,
+    "target_age_division": "8U",
+    "target_team_count": 2,
+    "count_warning": false,
+    "meets_team_threshold": false
+  },
+  {
+    "id": 2,
+    "source": "usssa",
+    "source_id": "fixture-2",
+    "name": "Minimal Event",
+    "detail_url": "https://example.com/minimal",
+    "location": "",
+    "director": null,
+    "start_date": null,
+    "end_date": null,
+    "age_divisions": [],
+    "registered_teams": null,
+    "division_team_counts": {},
+    "division_confirmed_counts": {},
+    "division_details": {},
+    "division_teams": {},
+    "team_count_scope": "event",
+    "stature": null,
+    "format": null,
+    "tags": [],
+    "logo_url": null,
+    "distance_miles": null,
+    "fetched_at": "2026-05-15T01:38:58.285338+00:00",
+    "first_seen_at": "2026-05-15T01:38:58.286390+00:00",
+    "last_seen_at": "2026-05-15T01:38:58.286390+00:00",
+    "shortlist_status": null,
+    "shortlist_priority": null,
+    "shortlist_notes": null,
+    "selected_age_divisions": [],
+    "selected_age_teams": [],
+    "selected_age_confirmed_count": 0,
+    "target_age_division": "8U",
+    "target_team_count": null,
+    "count_warning": true,
+    "meets_team_threshold": false
+  }
+]
