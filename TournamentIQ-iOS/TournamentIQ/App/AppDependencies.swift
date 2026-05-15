@@ -9,10 +9,12 @@ final class AppDependencies {
     let authSession: AuthSession
     let environment: EnvironmentResolver
     let keychain: KeychainStoring
+    let theme: Theme
 
     init(environment: EnvironmentResolver = EnvironmentResolver(), keychain: KeychainStoring = KeychainStore()) {
         self.environment = environment
         self.keychain = keychain
+        self.theme = Theme()
         let session = AuthSession(keychain: keychain)
         self.authSession = session
 
@@ -39,5 +41,15 @@ final class AppDependencies {
         )
         apiClient = client
         authEndpoints = AuthEndpoints(client: client)
+    }
+
+    func bootstrapTheme() async {
+        guard case .signedIn = authSession.state else { return }
+        do {
+            let response = try await SettingsEndpoints(client: apiClient).get()
+            theme.apply(response.settings)
+        } catch {
+            // Theme stays at defaults; not worth surfacing.
+        }
     }
 }
