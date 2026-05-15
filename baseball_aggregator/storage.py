@@ -476,7 +476,7 @@ def upsert_tournaments(conn: sqlite3.Connection, tournaments: list[Tournament]) 
             if (
                 payload["division_teams"] == "{}"
                 and payload["team_count_scope"] == "event"
-                and existing.get("team_count_scope") == "division"
+                and existing["team_count_scope"] == "division"
                 and existing["division_teams"] not in ("{}", None, "")
             ):
                 payload["division_teams"] = existing["division_teams"]

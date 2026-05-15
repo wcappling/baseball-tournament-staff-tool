@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import time
 
@@ -11,11 +12,14 @@ from baseball_aggregator.models import Tournament
 
 SOURCE = "grand_slam"
 BASE_URL = "https://www.grandslamtournaments.com/baseball/Events"
+TEAMS_BASE = "https://www.grandslamtournaments.com/baseball/Events/Teams"
 HUNTSVILLE_ZIP = "35801"
 HUNTSVILLE_LAT = 34.736449
 HUNTSVILLE_LNG = -86.550165
 DEFAULT_RADIUS_MILES = 200
 RESULTS_PER_PAGE = 15
+
+log = logging.getLogger(__name__)
 
 HEADERS = {
     "User-Agent": (
@@ -145,23 +149,32 @@ def _parse_event_card(card: Tag) -> Tournament:
 
 
 def whos_coming_url(tournament: Tournament) -> str:
-    if "/Events/Details/" not in tournament.detail_url:
-        return ""
-    return tournament.detail_url.replace("/Events/Details/", "/Events/Teams/", 1)
+    if "/Events/Details/" in tournament.detail_url:
+        return tournament.detail_url.replace("/Events/Details/", "/Events/Teams/", 1)
+    # Fallback: construct from source_id when the detail link wasn't found in the card
+    if tournament.source_id:
+        return f"{TEAMS_BASE}/{tournament.source_id}/"
+    return ""
 
 
 def enrich_with_whos_coming(tournament: Tournament, client: httpx.Client) -> Tournament:
     url = whos_coming_url(tournament)
     if not url:
+        log.warning("grand_slam: no teams URL for tournament %s (%s)", tournament.source_id, tournament.name)
         return tournament
     try:
         response = client.get(url)
         response.raise_for_status()
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
+        log.warning("grand_slam: HTTP error fetching teams for %s: %s", tournament.source_id, exc)
         return tournament
 
     division_counts, division_teams = parse_whos_coming(response.text)
     if not division_counts:
+        log.warning(
+            "grand_slam: no divisions parsed from teams page for %s (url=%s, status=%s, html_len=%d)",
+            tournament.source_id, url, response.status_code, len(response.text),
+        )
         return tournament
 
     tournament.division_team_counts = division_counts
