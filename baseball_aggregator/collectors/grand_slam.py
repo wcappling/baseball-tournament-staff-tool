@@ -10,6 +10,8 @@ from bs4 import BeautifulSoup, Tag
 from baseball_aggregator.collectors.common import clean_text, parse_date_range
 from baseball_aggregator.models import Tournament
 
+log = logging.getLogger(__name__)
+
 SOURCE = "grand_slam"
 BASE_URL = "https://www.grandslamtournaments.com/baseball/Events"
 TEAMS_BASE = "https://www.grandslamtournaments.com/baseball/Events/Teams"
@@ -19,16 +21,23 @@ HUNTSVILLE_LNG = -86.550165
 DEFAULT_RADIUS_MILES = 200
 RESULTS_PER_PAGE = 15
 
-log = logging.getLogger(__name__)
-
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
+        "Chrome/148.0.0.0 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Ch-Ua": '"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
 }
 
 
@@ -162,8 +171,18 @@ def enrich_with_whos_coming(tournament: Tournament, client: httpx.Client) -> Tou
     if not url:
         log.warning("grand_slam: no teams URL for tournament %s (%s)", tournament.source_id, tournament.name)
         return tournament
+
+    # Warm up session with the detail page first so any session cookies are set
+    # before hitting the Teams page, which the server may require.
+    if tournament.detail_url:
+        try:
+            client.get(tournament.detail_url, headers={"Referer": BASE_URL})
+        except httpx.HTTPError:
+            pass
+
     try:
-        response = client.get(url)
+        referer = tournament.detail_url or BASE_URL
+        response = client.get(url, headers={"Referer": referer})
         response.raise_for_status()
     except httpx.HTTPError as exc:
         log.warning("grand_slam: HTTP error fetching teams for %s: %s", tournament.source_id, exc)
@@ -172,8 +191,10 @@ def enrich_with_whos_coming(tournament: Tournament, client: httpx.Client) -> Tou
     division_counts, division_teams = parse_whos_coming(response.text)
     if not division_counts:
         log.warning(
-            "grand_slam: no divisions parsed from teams page for %s (url=%s, status=%s, html_len=%d)",
-            tournament.source_id, url, response.status_code, len(response.text),
+            "grand_slam: no divisions parsed from teams page for %s "
+            "(requested=%s, final=%s, status=%s, html_len=%d, preview=%r)",
+            tournament.source_id, url, str(response.url), response.status_code,
+            len(response.text), response.text[:500],
         )
         return tournament
 
