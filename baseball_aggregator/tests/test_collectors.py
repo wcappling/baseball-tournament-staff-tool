@@ -259,6 +259,189 @@ def test_planned_sources_are_registered():
     assert set(list_collectors()) == {"ncs", "usssa", "perfect_game", "grand_slam", "game7"}
 
 
+# ── Grand Slam collector tests ──────────────────────────────────────────────
+
+from baseball_aggregator.collectors.grand_slam import (
+    parse_whos_coming as gs_parse_whos_coming,
+    whos_coming_url as gs_whos_coming_url,
+)
+from baseball_aggregator.models import Tournament
+
+
+def _gs_teams_html() -> str:
+    return (FIXTURES / "grand_slam_teams_sample.html").read_text(encoding="utf-8")
+
+
+def test_grand_slam_whos_coming_url():
+    t = Tournament(
+        source="grand_slam",
+        source_id="4171",
+        name="Test",
+        detail_url="https://www.grandslamtournaments.com/baseball/Events/Details/4171/test-event",
+    )
+    assert gs_whos_coming_url(t) == (
+        "https://www.grandslamtournaments.com/baseball/Events/Teams/4171/test-event"
+    )
+
+
+def test_grand_slam_whos_coming_url_fallback_uses_source_id():
+    # When detail_url doesn't contain /Events/Details/, fall back to source_id
+    t = Tournament(source="grand_slam", source_id="4171", name="X", detail_url="")
+    assert gs_whos_coming_url(t) == "https://www.grandslamtournaments.com/baseball/Events/Teams/4171/"
+
+
+def test_grand_slam_whos_coming_url_empty_when_no_source_id():
+    t = Tournament(source="grand_slam", source_id="", name="X", detail_url="")
+    assert gs_whos_coming_url(t) == ""
+
+
+def test_grand_slam_parse_whos_coming_division_counts():
+    counts, _ = gs_parse_whos_coming(_gs_teams_html())
+    assert counts["8U-OPEN KP"] == 3   # 3 real teams (2 Open rows skipped)
+    assert counts["8U-OPEN"] == 1
+    assert counts["9U"] == 2           # bare age key — not double-counted
+    # 8U aggregate: 3 (8U-OPEN KP) + 1 (8U-OPEN) = 4
+    assert counts["8U"] == 4
+    # 9U is bare key so should NOT produce a separate "9U" aggregate beyond itself
+    assert counts.get("9U", 0) == 2
+
+
+def test_grand_slam_parse_whos_coming_team_rows():
+    counts, teams = gs_parse_whos_coming(_gs_teams_html())
+    # 8U-OPEN KP has 3 teams, Open rows excluded
+    assert len(teams["8U-OPEN KP"]) == 3
+    names = [t["team_name"] for t in teams["8U-OPEN KP"]]
+    assert "Alpha 8U" in names
+    assert "Beta 8U" in names
+    assert "Gamma 8U" in names
+    assert "Open" not in names
+
+    # Records are parsed correctly
+    alpha = next(t for t in teams["8U-OPEN KP"] if t["team_name"] == "Alpha 8U")
+    assert alpha["record"] == "5-2-0"
+    assert alpha["city_state"] == "Huntsville, AL"
+    assert alpha["detail_url"] == "https://www.grandslamtournaments.com/baseball/Teams/Details/28001/alpha-8u"
+
+    beta = next(t for t in teams["8U-OPEN KP"] if t["team_name"] == "Beta 8U")
+    assert beta["record"] == "3-4-1"
+
+
+def test_grand_slam_parse_whos_coming_aggregate_rollup():
+    counts, teams = gs_parse_whos_coming(_gs_teams_html())
+    # 8U aggregate should contain teams from both 8U-OPEN KP and 8U-OPEN
+    assert len(teams["8U"]) == 4
+    all_names = [t["team_name"] for t in teams["8U"]]
+    assert "Alpha 8U" in all_names
+    assert "Zeta 8U" in all_names
+
+
+def test_grand_slam_parse_whos_coming_no_double_count_for_bare_age_key():
+    counts, teams = gs_parse_whos_coming(_gs_teams_html())
+    # "9U" is a bare age key — the count should be 2, not 4 (double-counted)
+    assert counts["9U"] == 2
+    assert len(teams["9U"]) == 2
+
+
+# ── Grand Slam actual fixture tests (event 4081) ────────────────────────────
+
+def _gs_actual_html() -> str:
+    return (FIXTURES / "grand_slam_teams_actual_4081.html").read_text(encoding="utf-8")
+
+
+def test_gs_actual_division_counts():
+    counts, _ = gs_parse_whos_coming(_gs_actual_html())
+    # Specific divisions from event 4081
+    assert counts["7U CP"] == 2
+    assert counts["8U-A CP"] == 6
+    assert counts["8U-AA CP"] == 1
+    assert counts["9U-A"] == 1
+    assert counts["9U-AA"] == 1
+    assert counts["10U-A"] == 5
+    assert counts["10U-AA"] == 6
+    assert counts["11U-A"] == 1
+    assert counts["11U-AA"] == 20
+    assert counts["11U-AAA"] == 3
+    assert counts["12U-A"] == 0   # all Open rows, skipped
+    assert counts["12U-AA"] == 4
+    assert counts["12U-AAA"] == 1
+    assert counts["13U 60/90"] == 21
+    assert counts["14U-OPEN"] == 17
+
+
+def test_gs_actual_age_aggregates():
+    counts, _ = gs_parse_whos_coming(_gs_actual_html())
+    assert counts["7U"] == 2
+    assert counts["8U"] == 7    # 6 (8U-A CP) + 1 (8U-AA CP)
+    assert counts["9U"] == 2    # 1 (9U-A) + 1 (9U-AA)
+    assert counts["10U"] == 11  # 5 + 6
+    assert counts["11U"] == 24  # 1 + 20 + 3
+    assert counts["12U"] == 5   # 0 + 4 + 1
+    assert counts["13U"] == 21
+    assert counts["14U"] == 17
+
+
+def test_gs_actual_7u_cp_teams():
+    _, teams = gs_parse_whos_coming(_gs_actual_html())
+    ts = teams["7U CP"]
+    assert len(ts) == 2
+    names = [t["team_name"] for t in ts]
+    assert "Bucs Baseball Club 37" in names
+    assert "Tuscaloosa Venom" in names
+
+    bucs = next(t for t in ts if t["team_name"] == "Bucs Baseball Club 37")
+    assert bucs["city_state"] == "HOOVER, AL"
+    assert bucs["record"] == "0-0-0"
+    assert bucs["detail_url"] == (
+        "https://www.grandslamtournaments.com/baseball/Teams/Details/30474/bucs-baseball-club-37"
+    )
+
+    venom = next(t for t in ts if t["team_name"] == "Tuscaloosa Venom")
+    assert venom["record"] == "4-0-0"
+    assert venom["city_state"] == "Tuscaloosa, AL"
+
+
+def test_gs_actual_8u_a_cp_teams():
+    _, teams = gs_parse_whos_coming(_gs_actual_html())
+    ts = teams["8U-A CP"]
+    assert len(ts) == 6
+    names = [t["team_name"] for t in ts]
+    assert "FTF (8U)" in names
+    assert "Helena Hotshots" in names
+    assert "Mississippi Legends" in names
+
+    ftf = next(t for t in ts if t["team_name"] == "FTF (8U)")
+    assert ftf["record"] == "3-0-0"
+    assert ftf["city_state"] == "Alabaster, AL"
+    assert "Teams/Details/" in ftf["detail_url"]
+
+
+def test_gs_actual_12u_a_empty_open_rows_skipped():
+    counts, teams = gs_parse_whos_coming(_gs_actual_html())
+    # 12U-A division has only "Open" placeholder rows — none should be kept
+    assert counts["12U-A"] == 0
+    assert teams.get("12U-A", []) == []
+
+
+def test_gs_actual_13u_60_90_aggregate():
+    counts, teams = gs_parse_whos_coming(_gs_actual_html())
+    # "13U 60/90" starts with "13U" so should roll up into "13U" aggregate
+    assert counts["13U 60/90"] == 21
+    assert counts["13U"] == 21
+    assert len(teams["13U"]) == 21
+
+
+def test_gs_actual_detail_urls_absolute():
+    _, teams = gs_parse_whos_coming(_gs_actual_html())
+    for division, team_list in teams.items():
+        for team in team_list:
+            url = team.get("detail_url", "")
+            if url:
+                assert url.startswith("https://www.grandslamtournaments.com"), (
+                    f"Relative URL in {division}: {url}"
+                )
+
+
+
 def test_date_parsing():
     today = date(2026, 4, 22)
     assert parse_date_range("Apr 25", today) == (date(2026, 4, 25), date(2026, 4, 25))

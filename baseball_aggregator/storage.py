@@ -467,6 +467,21 @@ def upsert_tournaments(conn: sqlite3.Connection, tournaments: list[Tournament]) 
             )
         else:
             updated += 1
+            # Preserve previously-enriched team data when enrichment didn't complete this run.
+            # We use team_count_scope as the signal: "division" means enrichment succeeded and
+            # produced team data; "event" means enrichment was skipped or failed. Only preserve
+            # when the DB already holds division-scoped data but the new scrape came back
+            # event-scoped with empty payloads (i.e. a failed/skipped enrichment), so that a
+            # transient HTTP error doesn't wipe good team data.
+            if (
+                payload["division_teams"] == "{}"
+                and payload["team_count_scope"] == "event"
+                and existing["team_count_scope"] == "division"
+                and existing["division_teams"] not in ("{}", None, "")
+            ):
+                payload["division_teams"] = existing["division_teams"]
+                payload["division_team_counts"] = existing["division_team_counts"]
+                payload["team_count_scope"] = existing["team_count_scope"]
             set_clause = ", ".join(f"{column} = ?" for column in payload)
             conn.execute(
                 f"UPDATE tournaments SET {set_clause}, last_seen_at = ? WHERE id = ?",

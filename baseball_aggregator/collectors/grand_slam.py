@@ -14,6 +14,7 @@ log = logging.getLogger(__name__)
 
 SOURCE = "grand_slam"
 BASE_URL = "https://www.grandslamtournaments.com/baseball/Events"
+TEAMS_BASE = "https://www.grandslamtournaments.com/baseball/Events/Teams"
 HUNTSVILLE_ZIP = "35801"
 HUNTSVILLE_LAT = 34.736449
 HUNTSVILLE_LNG = -86.550165
@@ -157,14 +158,18 @@ def _parse_event_card(card: Tag) -> Tournament:
 
 
 def whos_coming_url(tournament: Tournament) -> str:
-    if "/Events/Details/" not in tournament.detail_url:
-        return ""
-    return tournament.detail_url.replace("/Events/Details/", "/Events/Teams/", 1)
+    if "/Events/Details/" in tournament.detail_url:
+        return tournament.detail_url.replace("/Events/Details/", "/Events/Teams/", 1)
+    # Fallback: construct from source_id when the detail link wasn't found in the card
+    if tournament.source_id:
+        return f"{TEAMS_BASE}/{tournament.source_id}/"
+    return ""
 
 
 def enrich_with_whos_coming(tournament: Tournament, client: httpx.Client) -> Tournament:
     url = whos_coming_url(tournament)
     if not url:
+        log.warning("grand_slam: no teams URL for tournament %s (%s)", tournament.source_id, tournament.name)
         return tournament
 
     # Warm up session with the detail page first so any session cookies are set
@@ -179,7 +184,8 @@ def enrich_with_whos_coming(tournament: Tournament, client: httpx.Client) -> Tou
         referer = tournament.detail_url or BASE_URL
         response = client.get(url, headers={"Referer": referer})
         response.raise_for_status()
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
+        log.warning("grand_slam: HTTP error fetching teams for %s: %s", tournament.source_id, exc)
         return tournament
 
     division_counts, division_teams = parse_whos_coming(response.text)
