@@ -143,23 +143,33 @@ function renderTeamRows(item) {
     return renderDivisionBreakdown(item);
   }
   const divisions = item.selected_age_divisions || [];
+  const apiDivisionTeams = item.division_teams || {};
+  const targetAge = (item.target_age_division || "").toUpperCase();
+
+  // Detect panel-level keys in division_teams that match the target age but aren't
+  // the bare aggregate key (e.g. "8U-OPEN KP" when target is "8U"). These come from
+  // Grand Slam where the tournament division itself is the grouping, not a sub-division.
+  const panelKeys = Object.keys(apiDivisionTeams).filter((k) => {
+    const ku = k.toUpperCase();
+    return ku !== targetAge && (ku.startsWith(targetAge + " ") || ku.startsWith(targetAge + "-"));
+  }).sort();
+
   const orderedDivisions = divisions.length
     ? divisions.map((division) => division.division)
-    : [...new Set(teams.map((team) => team.division || item.target_age_division))].sort();
-  const teamsByDivision = teams.reduce((groups, team) => {
-    const key = team.division || item.target_age_division;
-    groups[key] = groups[key] || [];
-    groups[key].push(team);
-    return groups;
-  }, {});
-  // For panel-level division keys (e.g. Grand Slam "8U-OPEN KP") that don't match
-  // any team's own division field, pull teams directly from item.division_teams.
-  const apiDivisionTeams = item.division_teams || {};
-  for (const div of orderedDivisions) {
-    if (!teamsByDivision[div] && (apiDivisionTeams[div] || []).length) {
-      teamsByDivision[div] = apiDivisionTeams[div];
-    }
-  }
+    : panelKeys.length
+      ? panelKeys
+      : [...new Set(teams.map((team) => team.division || item.target_age_division))].sort();
+
+  // Build teamsByDivision: use pre-grouped panel data when panel keys exist (Grand Slam),
+  // otherwise fall back to grouping the flat team list by each team's own division field.
+  const teamsByDivision = panelKeys.length && !divisions.length
+    ? apiDivisionTeams
+    : teams.reduce((groups, team) => {
+        const key = team.division || item.target_age_division;
+        groups[key] = groups[key] || [];
+        groups[key].push(team);
+        return groups;
+      }, {});
   return `
     <div class="team-list-title">
       ${escapeHtml(item.target_age_division)} teams (${teams.length} registered, ${item.selected_age_confirmed_count || 0} confirmed)
