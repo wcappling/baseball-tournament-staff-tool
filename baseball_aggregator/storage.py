@@ -1107,7 +1107,7 @@ def _selected_division_summaries(
         value = division.upper()
         if value == selected:
             continue
-        if not (value.startswith(f"{selected} ") or value.startswith(f"{selected}-")):
+        if not value.startswith(f"{selected} "):
             continue
         if selected_division_values and value not in selected_division_values:
             continue
