@@ -152,6 +152,14 @@ function renderTeamRows(item) {
     groups[key].push(team);
     return groups;
   }, {});
+  // For panel-level division keys (e.g. Grand Slam "8U-OPEN KP") that don't match
+  // any team's own division field, pull teams directly from item.division_teams.
+  const apiDivisionTeams = item.division_teams || {};
+  for (const div of orderedDivisions) {
+    if (!teamsByDivision[div] && (apiDivisionTeams[div] || []).length) {
+      teamsByDivision[div] = apiDivisionTeams[div];
+    }
+  }
   return `
     <div class="team-list-title">
       ${escapeHtml(item.target_age_division)} teams (${teams.length} registered, ${item.selected_age_confirmed_count || 0} confirmed)
