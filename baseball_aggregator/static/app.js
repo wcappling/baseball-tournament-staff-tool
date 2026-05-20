@@ -2,7 +2,8 @@ const rowsEl = document.querySelector("#tournamentRows");
 const declinedRowsEl = document.querySelector("#declinedRows");
 const declinedCountEl = document.querySelector("#declinedCount");
 const changesEl = document.querySelector("#changes");
-const sourceFilter = document.querySelector("#sourceFilter");
+const sourceMenuButton = document.querySelector("#sourceMenuButton");
+const sourceOptions = document.querySelector("#sourceOptions");
 const ageFilter = document.querySelector("#ageFilter");
 const divisionMenuButton = document.querySelector("#divisionMenuButton");
 const divisionOptions = document.querySelector("#divisionOptions");
@@ -65,6 +66,8 @@ function sourceLabel(source) {
     ncs: "NCS",
     usssa: "USSSA",
     perfect_game: "Perfect Game",
+    grand_slam: "Grand Slam",
+    game7: "Game7",
   }[source] || source;
 }
 
@@ -122,6 +125,14 @@ function skillLevel(source, division) {
     if (d.includes("major")) return "Elite / National";
     if (d.includes("aaa"))   return "High Competitive";
     if (d.includes("aa"))    return "Middle Competitive";
+  } else if (source === "grand_slam") {
+    if (d.includes("aaa"))   return "High Competitive";
+    if (d.includes("aa"))    return "Middle Competitive";
+    if (/\ba\b/.test(d))     return "Developmental";
+  } else if (source === "game7") {
+    if (d.includes("d1") || d.includes("division 1")) return "High Competitive";
+    if (d.includes("d2") || d.includes("division 2")) return "Middle Competitive";
+    if (d.includes("d3") || d.includes("division 3")) return "Developmental";
   }
   return null;
 }
@@ -132,15 +143,33 @@ function renderTeamRows(item) {
     return renderDivisionBreakdown(item);
   }
   const divisions = item.selected_age_divisions || [];
+  const apiDivisionTeams = item.division_teams || {};
+  const targetAge = (item.target_age_division || "").toUpperCase();
+
+  // Detect panel-level keys in division_teams that match the target age but aren't
+  // the bare aggregate key (e.g. "8U-OPEN KP" when target is "8U"). These come from
+  // Grand Slam where the tournament division itself is the grouping, not a sub-division.
+  const panelKeys = Object.keys(apiDivisionTeams).filter((k) => {
+    const ku = k.toUpperCase();
+    return ku !== targetAge && (ku.startsWith(targetAge + " ") || ku.startsWith(targetAge + "-"));
+  }).sort();
+
   const orderedDivisions = divisions.length
     ? divisions.map((division) => division.division)
-    : [...new Set(teams.map((team) => team.division || item.target_age_division))].sort();
-  const teamsByDivision = teams.reduce((groups, team) => {
-    const key = team.division || item.target_age_division;
-    groups[key] = groups[key] || [];
-    groups[key].push(team);
-    return groups;
-  }, {});
+    : panelKeys.length
+      ? panelKeys
+      : [...new Set(teams.map((team) => team.division || item.target_age_division))].sort();
+
+  // Build teamsByDivision: use pre-grouped panel data when panel keys exist (Grand Slam),
+  // otherwise fall back to grouping the flat team list by each team's own division field.
+  const teamsByDivision = panelKeys.length && !divisions.length
+    ? apiDivisionTeams
+    : teams.reduce((groups, team) => {
+        const key = team.division || item.target_age_division;
+        groups[key] = groups[key] || [];
+        groups[key].push(team);
+        return groups;
+      }, {});
   return `
     <div class="team-list-title">
       ${escapeHtml(item.target_age_division)} teams (${teams.length} registered, ${item.selected_age_confirmed_count || 0} confirmed)
@@ -489,7 +518,9 @@ async function loadAvailableSeasons() {
 async function loadDivisions() {
   const previous = selectedDivisionValues();
   const params = new URLSearchParams();
-  if (sourceFilter.value) params.set("source", sourceFilter.value);
+  for (const src of selectedSourceValues()) {
+    params.append("source", src);
+  }
   if (ageFilter.value) params.set("age", ageFilter.value);
   const divisions = await api(`/api/divisions?${params.toString()}`);
   divisionOptions.innerHTML = "";
@@ -517,6 +548,61 @@ function divisionOption(label, value, checked) {
   text.textContent = label;
   wrapper.append(input, text);
   return wrapper;
+}
+
+function selectedSourceValues() {
+  return [...sourceOptions.querySelectorAll('input[type="checkbox"]:checked')]
+    .map((input) => input.value)
+    .filter(Boolean);
+}
+
+function normalizeSourceSelection(event) {
+  const changed = event.target;
+  const allOption = sourceOptions.querySelector('input[value=""]');
+  const sourceInputs = [...sourceOptions.querySelectorAll('input[type="checkbox"]')]
+    .filter((input) => input.value);
+
+  if (changed === allOption && allOption.checked) {
+    for (const input of sourceInputs) input.checked = false;
+  } else if (changed && changed.value) {
+    if (allOption) allOption.checked = false;
+  }
+
+  if (!sourceInputs.some((input) => input.checked) && allOption) {
+    allOption.checked = true;
+  }
+  updateSourceButton();
+  loadDivisions();
+}
+
+function updateSourceButton() {
+  const selected = selectedSourceValues();
+  if (!selected.length) {
+    sourceMenuButton.textContent = "All";
+  } else if (selected.length === 1) {
+    const labels = { ncs: "NCS", usssa: "USSSA", perfect_game: "Perfect Game", grand_slam: "Grand Slam", game7: "Game7" };
+    sourceMenuButton.textContent = labels[selected[0]] || selected[0];
+  } else {
+    sourceMenuButton.textContent = `${selected.length} selected`;
+  }
+}
+
+function toggleSourceMenu() {
+  const nextOpen = sourceOptions.hidden;
+  sourceOptions.hidden = !nextOpen;
+  sourceMenuButton.setAttribute("aria-expanded", String(nextOpen));
+}
+
+function closeSourceMenu(event) {
+  if (
+    sourceOptions.hidden ||
+    sourceOptions.contains(event.target) ||
+    sourceMenuButton.contains(event.target)
+  ) {
+    return;
+  }
+  sourceOptions.hidden = true;
+  sourceMenuButton.setAttribute("aria-expanded", "false");
 }
 
 function selectedDivisionValues() {
@@ -713,7 +799,9 @@ function initTheme() {
 
 async function loadTournaments() {
   const params = new URLSearchParams();
-  if (sourceFilter.value) params.set("source", sourceFilter.value);
+  for (const src of selectedSourceValues()) {
+    params.append("source", src);
+  }
   if (ageFilter.value) params.set("age", ageFilter.value);
   for (const division of selectedDivisionValues()) {
     params.append("division", division);
@@ -934,10 +1022,14 @@ async function loadChanges() {
 
 document.querySelector("#applyFilters").addEventListener("click", loadTournaments);
 if (includeUnknownFilter) includeUnknownFilter.addEventListener("change", renderRows);
-sourceFilter.addEventListener("change", loadDivisions);
 ageFilter.addEventListener("change", loadDivisions);
+sourceMenuButton.addEventListener("click", toggleSourceMenu);
+for (const input of sourceOptions.querySelectorAll('input[type="checkbox"]')) {
+  input.addEventListener("change", normalizeSourceSelection);
+}
 divisionMenuButton.addEventListener("click", toggleDivisionMenu);
 document.addEventListener("click", (event) => {
+  closeSourceMenu(event);
   closeDivisionMenu(event);
   // Close mobile nav on outside click (mobileNav ref wired below)
   const nav = document.querySelector("#mobileNav");
@@ -948,6 +1040,8 @@ document.addEventListener("click", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    sourceOptions.hidden = true;
+    sourceMenuButton.setAttribute("aria-expanded", "false");
     divisionOptions.hidden = true;
     divisionMenuButton.setAttribute("aria-expanded", "false");
   }
@@ -1065,6 +1159,8 @@ function renderTeamStatsRows(teams) {
       <td class="col-ncs record-cell" data-label="NCS">${escapeHtml(team.ncs_record || "—")}</td>
       <td class="col-usssa record-cell" data-label="USSSA">${escapeHtml(team.usssa_record || "—")}</td>
       <td class="col-pg record-cell" data-label="Perfect Game">${escapeHtml(team.perfect_game_record || "—")}</td>
+      <td class="col-gs record-cell" data-label="Grand Slam">${escapeHtml(team.grand_slam_record || "—")}</td>
+      <td class="col-game7 record-cell" data-label="Game7">${escapeHtml(team.game7_record || "—")}</td>
       <td class="record-cell record-cumulative" data-label="Cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
       <td class="win-pct" data-label="Win%">${formatWinPct(team.win_pct)}</td>
       <td class="win-pct" data-label="Games">${team.total_games}</td>
@@ -1327,6 +1423,13 @@ function updateAnalysisCompareBtn() {
   if (analysisCompareBtnEl) analysisCompareBtnEl.hidden = analysisSelectedTeams.size === 0;
 }
 
+function statsPill(status) {
+  if (!status || status === "loaded" || status === "unsupported") return "";
+  if (status === "missing") return ' <span class="stats-pill stats-pill--missing" title="No stats loaded — click Refresh stats">missing</span>';
+  if (status === "stale") return ' <span class="stats-pill stats-pill--stale" title="Stats older than 7 days — click Refresh stats">stale</span>';
+  return "";
+}
+
 function renderTeamAnalysisRows(teams) {
   if (!teamAnalysisRowsEl) return;
   teamAnalysisRowsEl.innerHTML = "";
@@ -1359,13 +1462,16 @@ function renderTeamAnalysisRows(teams) {
 
     const tr = document.createElement("tr");
     if (isSelected) tr.classList.add("team-row-selected");
+    const status = team.sources_status || {};
     tr.innerHTML = `
       <td class="col-select" data-label="Select"><input type="checkbox" class="team-select-cb" data-name="${escapeHtml(team.team_name)}" ${isSelected ? "checked" : ""}></td>
       <td data-label="Team">${escapeHtml(team.team_name)}</td>
       <td data-label="City/State">${escapeHtml(team.city_state || "")}</td>
-      <td class="col-ncs record-cell" data-label="NCS">${escapeHtml(team.ncs_record || "—")}</td>
-      <td class="col-usssa record-cell" data-label="USSSA">${escapeHtml(team.usssa_record || "—")}</td>
-      <td class="col-pg record-cell" data-label="Perfect Game">${escapeHtml(team.perfect_game_record || "—")}</td>
+      <td class="col-ncs record-cell" data-label="NCS">${escapeHtml(team.ncs_record || "—")}${statsPill(status.ncs)}</td>
+      <td class="col-usssa record-cell" data-label="USSSA">${escapeHtml(team.usssa_record || "—")}${statsPill(status.usssa)}</td>
+      <td class="col-pg record-cell" data-label="Perfect Game">${escapeHtml(team.perfect_game_record || "—")}${statsPill(status.perfect_game)}</td>
+      <td class="col-gs record-cell" data-label="Grand Slam">${escapeHtml(team.grand_slam_record || "—")}${statsPill(status.grand_slam)}</td>
+      <td class="col-game7 record-cell" data-label="Game7">${escapeHtml(team.game7_record || "—")}${statsPill(status.game7)}</td>
       <td class="record-cell record-cumulative" data-label="Cumulative">${escapeHtml(team.cumulative_record || "—")}</td>
       <td class="win-pct" data-label="Win%">${formatWinPct(team.win_pct)}</td>
       <td class="win-pct" data-label="Games">${team.total_games}</td>
@@ -1451,6 +1557,68 @@ if (analysisClearSelectionEl) analysisClearSelectionEl.addEventListener("click",
   updateAnalysisCompareBtn();
   renderTeamAnalysisRows(teamAnalysisData);
 });
+
+const refreshStatsBtnEl = document.querySelector("#refreshStatsBtn");
+const refreshStatsFullBtnEl = document.querySelector("#refreshStatsFullBtn");
+const refreshStatsStatusEl = document.querySelector("#refreshStatsStatus");
+
+function summarizeStatsResult(stats) {
+  if (!stats) return "";
+  const parts = [];
+  const ncs = stats.ncs;
+  if (ncs && ncs.status && ncs.status !== "skipped") {
+    if (ncs.status === "success" && ncs.teams_refreshed != null) {
+      parts.push(`NCS: ${ncs.teams_refreshed} teams`);
+    } else if (ncs.status !== "success") {
+      parts.push(`NCS: ${ncs.status}`);
+    }
+  }
+  const usssa = stats.usssa;
+  if (usssa && usssa.status && usssa.status !== "skipped") {
+    if (usssa.status === "success" && usssa.records_written != null) {
+      parts.push(`USSSA: ${usssa.records_written} records`);
+    } else if (usssa.status !== "success") {
+      parts.push(`USSSA: ${usssa.status}`);
+    }
+  }
+  return parts.join(" · ");
+}
+
+async function runStatsRefresh(path, runningLabel) {
+  if (!refreshStatsBtnEl) return;
+  const buttons = [refreshStatsBtnEl, refreshStatsFullBtnEl].filter(Boolean);
+  const originalLabels = buttons.map((b) => b.textContent);
+  buttons.forEach((b) => { b.disabled = true; });
+  if (refreshStatsBtnEl) refreshStatsBtnEl.textContent = runningLabel;
+  if (refreshStatsStatusEl) refreshStatsStatusEl.textContent = "";
+  try {
+    const data = await api(path, { method: "POST", body: JSON.stringify({}) });
+    if (data && data.skipped) {
+      if (refreshStatsStatusEl) refreshStatsStatusEl.textContent = data.message || "Background refresh in progress — try again in a minute.";
+    } else {
+      teamAnalysisLoaded = false;
+      await loadTeamAnalysis();
+      if (refreshStatsStatusEl) {
+        const summary = summarizeStatsResult(data && data.stats);
+        refreshStatsStatusEl.textContent = summary ? `Refreshed — ${summary}` : "Refreshed.";
+      }
+    }
+  } catch (err) {
+    if (refreshStatsStatusEl) refreshStatsStatusEl.textContent = `Refresh failed: ${err && err.message ? err.message : err}`;
+  } finally {
+    buttons.forEach((b, i) => {
+      b.disabled = false;
+      b.textContent = originalLabels[i];
+    });
+  }
+}
+
+if (refreshStatsBtnEl) {
+  refreshStatsBtnEl.addEventListener("click", () => runStatsRefresh("/api/team-analysis/refresh-stats", "Refreshing…"));
+}
+if (refreshStatsFullBtnEl) {
+  refreshStatsFullBtnEl.addEventListener("click", () => runStatsRefresh("/api/team-analysis/refresh-full", "Full refresh…"));
+}
 
 // Inline age selectors in each stats view
 if (analysisAgeFilterEl) {

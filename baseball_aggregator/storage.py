@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 _ALLOWED_TABLES: frozenset[str] = frozenset({
     "tournaments", "shortlist", "team_settings", "teams",
     "team_sessions", "team_records", "refresh_runs", "ncs_team_records",
+    "team_stat_refresh",
 })
 _ALLOWED_COLUMN_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,59}$")
 _DIVISION_DETAIL_NOISE_FIELDS: frozenset[str] = frozenset({"pending_entries", "deadline_passed"})
@@ -169,6 +170,20 @@ def init_db(conn: sqlite3.Connection) -> None:
             FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
             UNIQUE(team_id, source, team_name, season)
         );
+
+        CREATE TABLE IF NOT EXISTS team_stat_refresh (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id          TEXT NOT NULL,
+            source           TEXT NOT NULL,
+            started_at       TEXT NOT NULL,
+            finished_at      TEXT,
+            status           TEXT NOT NULL,
+            teams_refreshed  INTEGER NOT NULL DEFAULT 0,
+            message          TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_team_stat_refresh_lookup
+            ON team_stat_refresh(team_id, source, started_at DESC);
         """
     )
     _ensure_column(conn, "tournaments", "location", "TEXT")
@@ -196,6 +211,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     _seed_known_team_theme_defaults(conn)
     _backfill_missing_distances(conn)
     _ensure_ncs_team_records_table(conn)
+    _backfill_enabled_sources(conn)
     conn.commit()
 
 
@@ -451,6 +467,21 @@ def upsert_tournaments(conn: sqlite3.Connection, tournaments: list[Tournament]) 
             )
         else:
             updated += 1
+            # Preserve previously-enriched team data when enrichment didn't complete this run.
+            # We use team_count_scope as the signal: "division" means enrichment succeeded and
+            # produced team data; "event" means enrichment was skipped or failed. Only preserve
+            # when the DB already holds division-scoped data but the new scrape came back
+            # event-scoped with empty payloads (i.e. a failed/skipped enrichment), so that a
+            # transient HTTP error doesn't wipe good team data.
+            if (
+                payload["division_teams"] == "{}"
+                and payload["team_count_scope"] == "event"
+                and existing["team_count_scope"] == "division"
+                and existing["division_teams"] not in ("{}", None, "")
+            ):
+                payload["division_teams"] = existing["division_teams"]
+                payload["division_team_counts"] = existing["division_team_counts"]
+                payload["team_count_scope"] = existing["team_count_scope"]
             set_clause = ", ".join(f"{column} = ?" for column in payload)
             conn.execute(
                 f"UPDATE tournaments SET {set_clause}, last_seen_at = ? WHERE id = ?",
@@ -487,9 +518,19 @@ def search_tournaments(
 
     clauses = []
     params: list[Any] = []
-    if source := filters.get("source"):
-        clauses.append("t.source = ?")
-        params.append(source)
+    sources = filters.get("source")
+    if sources:
+        if isinstance(sources, str):
+            sources = [sources]
+        sources = [s for s in sources if s]  # filter empty strings
+    if sources:
+        if len(sources) == 1:
+            clauses.append("t.source = ?")
+            params.append(sources[0])
+        else:
+            placeholders = ",".join("?" * len(sources))
+            clauses.append(f"t.source IN ({placeholders})")
+            params.extend(sources)
     if start_on_or_after := filters.get("start_on_or_after"):
         clauses.append("(t.start_date IS NULL OR t.start_date >= ?)")
         params.append(start_on_or_after)
@@ -569,13 +610,22 @@ def update_tournament_division_teams(
     conn.commit()
 
 
-def list_divisions(conn: sqlite3.Connection, age: str | None = None, source: str | None = None) -> list[str]:
+def list_divisions(conn: sqlite3.Connection, age: str | None = None, source: list[str] | str | None = None) -> list[str]:
     init_db(conn)
     clauses = []
     params: list[Any] = []
     if source:
-        clauses.append("source = ?")
-        params.append(source)
+        if isinstance(source, str):
+            source = [source]
+        source = [s for s in source if s]
+    if source:
+        if len(source) == 1:
+            clauses.append("source = ?")
+            params.append(source[0])
+        else:
+            placeholders = ",".join("?" * len(source))
+            clauses.append(f"source IN ({placeholders})")
+            params.extend(source)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = conn.execute(
         f"SELECT age_divisions, division_team_counts, division_details FROM tournaments {where}",
@@ -672,6 +722,51 @@ def latest_refresh_runs(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         "SELECT * FROM refresh_runs ORDER BY started_at DESC, id DESC LIMIT 20"
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def record_stat_refresh_start(conn: sqlite3.Connection, team_id: str, source: str) -> int:
+    init_db(conn)
+    now = datetime.now(UTC).isoformat()
+    cursor = conn.execute(
+        "INSERT INTO team_stat_refresh(team_id, source, started_at, status) "
+        "VALUES (?, ?, ?, 'running')",
+        (team_id, source, now),
+    )
+    conn.commit()
+    return int(cursor.lastrowid)
+
+
+def record_stat_refresh_finish(
+    conn: sqlite3.Connection,
+    row_id: int,
+    status: str,
+    teams_refreshed: int = 0,
+    message: str = "",
+) -> None:
+    conn.execute(
+        "UPDATE team_stat_refresh "
+        "SET finished_at = ?, status = ?, teams_refreshed = ?, message = ? "
+        "WHERE id = ?",
+        (datetime.now(UTC).isoformat(), status, teams_refreshed, message, row_id),
+    )
+    conn.commit()
+
+
+def get_latest_stat_refresh(
+    conn: sqlite3.Connection,
+    team_id: str,
+    source: str,
+) -> dict[str, Any] | None:
+    row = conn.execute(
+        """
+        SELECT * FROM team_stat_refresh
+        WHERE team_id = ? AND source = ?
+        ORDER BY started_at DESC, id DESC
+        LIMIT 1
+        """,
+        (team_id, source),
+    ).fetchone()
+    return dict(row) if row else None
 
 
 def get_hydrated_tournament_teams(conn: sqlite3.Connection) -> list[tuple[str, str]]:
@@ -892,6 +987,52 @@ def _ensure_ncs_team_records_table(conn: sqlite3.Connection) -> None:
     """Create ncs_team_records table if it doesn't exist (idempotent)."""
     from baseball_aggregator.scrapers.ncs_teams import init_ncs_team_records_table
     init_ncs_team_records_table(conn)
+
+
+_LEGACY_DEFAULT_SOURCES = {"ncs", "usssa", "perfect_game"}
+
+
+def _backfill_enabled_sources(conn: sqlite3.Connection) -> None:
+    """Append newly-supported sources to settings that were using the old defaults.
+
+    Only updates rows whose enabled_sources is a superset of the previous
+    defaults (ncs/usssa/perfect_game), which indicates they were the old
+    default rather than a deliberately-restricted subset.
+    """
+    new_sources: list[str] = [
+        s for s in DEFAULT_SETTINGS["enabled_sources"] if s not in _LEGACY_DEFAULT_SOURCES
+    ]
+    if not new_sources:
+        return
+
+    def _maybe_merge(current: list[str]) -> list[str] | None:
+        if not _LEGACY_DEFAULT_SOURCES.issubset(current):
+            return None
+        if any(s in current for s in new_sources):
+            return None  # already migrated; don't re-add removed sources
+        merged = current + [s for s in new_sources if s not in current]
+        return merged if merged != current else None
+
+    # Global settings table
+    row = conn.execute("SELECT value FROM settings WHERE key = 'enabled_sources'").fetchone()
+    if row:
+        merged = _maybe_merge(json.loads(row["value"]))
+        if merged is not None:
+            conn.execute(
+                "UPDATE settings SET value = ? WHERE key = 'enabled_sources'",
+                (json.dumps(merged),),
+            )
+
+    # Per-team settings table
+    for ts_row in conn.execute(
+        "SELECT team_id, value FROM team_settings WHERE key = 'enabled_sources'"
+    ).fetchall():
+        merged = _maybe_merge(json.loads(ts_row["value"]))
+        if merged is not None:
+            conn.execute(
+                "UPDATE team_settings SET value = ? WHERE team_id = ? AND key = 'enabled_sources'",
+                (json.dumps(merged), ts_row["team_id"]),
+            )
 
 
 def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:

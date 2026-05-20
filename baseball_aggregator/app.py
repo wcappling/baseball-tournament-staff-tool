@@ -16,6 +16,8 @@ from pydantic import BaseModel, Field, field_validator
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from baseball_aggregator.scrapers import ncs_teams as _ncs_teams_scraper
+from baseball_aggregator.scrapers import grand_slam_teams as _grand_slam_teams_scraper
+from baseball_aggregator.scrapers import game7_teams as _game7_teams_scraper
 from baseball_aggregator.auth import (
     COOKIE_NAME,
     PasswordAuthMiddleware,
@@ -276,7 +278,7 @@ def api_v1_update_settings(
 @app.get("/api/tournaments")
 def api_tournaments(
     request: Request,
-    source: str | None = None,
+    source: list[str] | None = Query(default=None),
     age: str | None = None,
     division: list[str] | None = Query(default=None),
     threshold: int | None = None,
@@ -306,7 +308,7 @@ def api_tournaments(
 
 @app.get("/api/v1/tournaments")
 def api_v1_tournaments(
-    source: str | None = None,
+    source: list[str] | None = Query(default=None),
     age: str | None = None,
     division: list[str] | None = Query(default=None),
     threshold: int | None = None,
@@ -357,14 +359,14 @@ def api_v1_tournament_detail(
 
 
 @app.get("/api/divisions")
-def api_divisions(source: str | None = None, age: str | None = None):
+def api_divisions(source: list[str] | None = Query(default=None), age: str | None = None):
     with connect() as conn:
         return list_divisions(conn, age=age, source=source)
 
 
 @app.get("/api/v1/divisions")
 def api_v1_divisions(
-    source: str | None = None,
+    source: list[str] | None = Query(default=None),
     age: str | None = None,
     session: dict[str, Any] = Depends(_native_session),
 ):
@@ -508,11 +510,89 @@ def api_team_analysis(
         return stats.team_analysis_records(conn, age_division, team_id=team_id, season=season)
 
 
+@app.post("/api/team-analysis/refresh-stats")
+async def api_team_analysis_refresh_stats(request: Request):
+    """Hydrate team_records for the caller's shortlisted (Interested/Registered) teams.
+
+    Does NOT re-pull tournament listings.
+    """
+    if auth_enabled() and not get_web_team_id(request.cookies.get(COOKIE_NAME)):
+        raise HTTPException(status_code=403, detail={"code": "auth_required", "message": "Authentication required."})
+    team_id = _web_team_id(request)
+    with connect() as conn:
+        settings = get_team_settings(conn, team_id)
+    return await services.refresh_team_stats(team_id, enabled_sources=settings.get("enabled_sources"))
+
+
+@app.post("/api/team-analysis/refresh-full")
+async def api_team_analysis_refresh_full(request: Request):
+    """Full refresh: re-pull tournament listings, then hydrate team_records."""
+    if auth_enabled() and not get_web_team_id(request.cookies.get(COOKIE_NAME)):
+        raise HTTPException(status_code=403, detail={"code": "auth_required", "message": "Authentication required."})
+    team_id = _web_team_id(request)
+    with connect() as conn:
+        settings = get_team_settings(conn, team_id)
+    sources = settings.get("enabled_sources")
+    tournament_refresh = await asyncio.to_thread(services.refresh_sources, sources)
+    if isinstance(tournament_refresh, dict) and tournament_refresh.get("status") == "skipped":
+        return {
+            "skipped": True,
+            "tournament_refresh": tournament_refresh,
+            "message": tournament_refresh.get("message", "Background refresh in progress."),
+        }
+    stats_result = await services.refresh_team_stats(team_id, enabled_sources=sources)
+    return {
+        "skipped": stats_result.get("skipped", False),
+        "tournament_refresh": tournament_refresh,
+        "stats": stats_result.get("stats", {}),
+        "message": stats_result.get("message"),
+    }
+
+
 @app.get("/api/available-seasons")
 def api_available_seasons(request: Request):
     with connect() as conn:
         team_id = _web_team_id(request)
         seasons = get_available_seasons(conn, team_id)
+    return {"seasons": seasons, "current": stats.current_season_year()}
+
+
+@app.get("/api/v1/team-stats")
+def api_v1_team_stats(
+    age: str | None = None,
+    season: str | None = None,
+    session: dict[str, Any] = Depends(_native_session),
+):
+    with connect() as conn:
+        team_id = session["team_id"]
+        settings = get_team_settings(conn, team_id)
+        age_division = (age or settings["target_age_division"]).upper()
+        teams = stats.aggregate_team_records(conn, team_id, age_division, season=season)
+    return {
+        "age": age_division,
+        "season": season or stats.current_season_year(),
+        "teams": teams,
+        "total_teams": len(teams),
+    }
+
+
+@app.get("/api/v1/team-analysis")
+def api_v1_team_analysis(
+    age: str | None = None,
+    season: str | None = None,
+    session: dict[str, Any] = Depends(_native_session),
+):
+    with connect() as conn:
+        team_id = session["team_id"]
+        settings = get_team_settings(conn, team_id)
+        age_division = (age or settings["target_age_division"]).upper()
+        return stats.team_analysis_records(conn, age_division, team_id=team_id, season=season)
+
+
+@app.get("/api/v1/available-seasons")
+def api_v1_available_seasons(session: dict[str, Any] = Depends(_native_session)):
+    with connect() as conn:
+        seasons = get_available_seasons(conn, session["team_id"])
     return {"seasons": seasons, "current": stats.current_season_year()}
 
 
@@ -546,6 +626,74 @@ def api_ncs_teams_scrape(
         except Exception as exc:
             print(f"NCS scrape error: {exc}")
             return api_error("scrape_failed", "NCS scrape failed — check server logs", 502)
+
+    return result
+
+
+@app.post("/api/grand-slam-teams/scrape")
+def api_grand_slam_teams_scrape(
+    request: Request,
+    age: str | None = None,
+    state: str | None = None,
+    season_id: int | None = None,
+):
+    with connect() as conn:
+        team_id = _web_team_id(request)
+        settings = get_team_settings(conn, team_id)
+        age_division = (age or settings.get("target_age_division") or "8U").strip().upper()
+        if not state:
+            home_label: str = settings.get("home_label") or ""
+            m = re.search(r"\b([A-Z]{2})\s*$", home_label.upper())
+            state = m.group(1) if m else "AL"
+        scrape_season_id = season_id or _grand_slam_teams_scraper.DEFAULT_SEASON_ID
+
+        try:
+            result = _grand_slam_teams_scraper.scrape_grand_slam_teams(
+                conn,
+                age_division=age_division,
+                season_id=scrape_season_id,
+                state=state,
+                team_id=team_id,
+            )
+        except ValueError as exc:
+            return api_error("invalid_parameter", str(exc), 400)
+        except Exception as exc:
+            print(f"Grand Slam scrape error: {exc}")
+            return api_error("scrape_failed", "Grand Slam scrape failed — check server logs", 502)
+
+    return result
+
+
+@app.post("/api/game7-teams/scrape")
+def api_game7_teams_scrape(
+    request: Request,
+    age: str | None = None,
+    state: str | None = None,
+    season_id: int | None = None,
+):
+    with connect() as conn:
+        team_id = _web_team_id(request)
+        settings = get_team_settings(conn, team_id)
+        age_division = (age or settings.get("target_age_division") or "8U").strip().upper()
+        if not state:
+            home_label: str = settings.get("home_label") or ""
+            m = re.search(r"\b([A-Z]{2})\s*$", home_label.upper())
+            state = m.group(1) if m else "TN"
+        scrape_season_id = season_id or _game7_teams_scraper.DEFAULT_SEASON_ID
+
+        try:
+            result = _game7_teams_scraper.scrape_game7_teams(
+                conn,
+                age_division=age_division,
+                season_id=scrape_season_id,
+                state=state,
+                team_id=team_id,
+            )
+        except ValueError as exc:
+            return api_error("invalid_parameter", str(exc), 400)
+        except Exception as exc:
+            print(f"Game7 scrape error: {exc}")
+            return api_error("scrape_failed", "Game7 scrape failed — check server logs", 502)
 
     return result
 

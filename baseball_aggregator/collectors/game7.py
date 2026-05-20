@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import re
 import time
 
@@ -10,11 +9,8 @@ from bs4 import BeautifulSoup, Tag
 from baseball_aggregator.collectors.common import clean_text, parse_date_range
 from baseball_aggregator.models import Tournament
 
-log = logging.getLogger(__name__)
-
-SOURCE = "grand_slam"
-BASE_URL = "https://www.grandslamtournaments.com/baseball/Events"
-TEAMS_BASE = "https://www.grandslamtournaments.com/baseball/Events/Teams"
+SOURCE = "game7"
+BASE_URL = "https://www.game7baseball.com/baseball/Events"
 HUNTSVILLE_ZIP = "35801"
 HUNTSVILLE_LAT = 34.736449
 HUNTSVILLE_LNG = -86.550165
@@ -25,19 +21,10 @@ HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/148.0.0.0 Safari/537.36"
+        "Chrome/120.0.0.0 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Ch-Ua": '"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
-    "Sec-Ch-Ua-Mobile": "?0",
-    "Sec-Ch-Ua-Platform": '"Windows"',
 }
 
 
@@ -91,111 +78,18 @@ def fetch_tournaments(
     return results
 
 
-def parse_event_list(html: str) -> list[Tournament]:
-    soup = BeautifulSoup(html, "html.parser")
-    cards = soup.select("div.media-list.media-list-events > div.media[data-eventid]")
-    return [_parse_event_card(card) for card in cards]
-
-
-def _parse_event_card(card: Tag) -> Tournament:
-    event_id = str(card.get("data-eventid", ""))
-
-    body = card.select_one(".media-body")
-
-    name_el = body.select_one(".h3 strong") if body else None
-    name = clean_text(name_el.get_text()) if name_el else ""
-
-    date_el = body.select_one(".h4") if body else None
-    date_text = clean_text(date_el.get_text()) if date_el else ""
-    start_date, end_date = parse_date_range(date_text)
-
-    location = ""
-    registered_teams = None
-    if body:
-        for h5 in body.select(".h5"):
-            strong = h5.select_one("strong")
-            if not strong:
-                continue
-            text = clean_text(strong.get_text())
-            if re.search(r"Teams?\s+Registered", text, re.IGNORECASE):
-                match = re.search(r"(\d+)", text)
-                if match:
-                    registered_teams = int(match.group(1))
-            elif not location:
-                location = text
-
-    age_divisions: list[str] = []
-    for btn in card.select(".media-right .ages button.badge[data-agenumber]"):
-        age_num = btn.get("data-agenumber", "")
-        if age_num:
-            age_divisions.append(f"{age_num}U")
-
-    detail_link = card.select_one(".ctas a[href*='/Events/Details/']")
-    href = detail_link.get("href", "") if detail_link else ""
-    detail_url = f"https://www.grandslamtournaments.com{href}" if href.startswith("/") else href
-
-    logo_url = None
-    thumbnail = card.select_one(".media-thumbnail")
-    if thumbnail:
-        style = thumbnail.get("style", "")
-        match = re.search(r"url\(([^)]+)\)", style)
-        if match:
-            logo_url = match.group(1).strip("'\"")
-
-    return Tournament(
-        source=SOURCE,
-        source_id=event_id,
-        name=name,
-        detail_url=detail_url,
-        location=location,
-        start_date=start_date,
-        end_date=end_date,
-        age_divisions=age_divisions,
-        registered_teams=registered_teams,
-        team_count_scope="event",
-        logo_url=logo_url,
-    )
-
-
-def whos_coming_url(tournament: Tournament) -> str:
-    if "/Events/Details/" in tournament.detail_url:
-        return tournament.detail_url.replace("/Events/Details/", "/Events/Teams/", 1)
-    # Fallback: construct from source_id when the detail link wasn't found in the card
-    if tournament.source_id:
-        return f"{TEAMS_BASE}/{tournament.source_id}/"
-    return ""
-
-
 def enrich_with_whos_coming(tournament: Tournament, client: httpx.Client) -> Tournament:
     url = whos_coming_url(tournament)
     if not url:
-        log.warning("grand_slam: no teams URL for tournament %s (%s)", tournament.source_id, tournament.name)
         return tournament
-
-    # Warm up session with the detail page first so any session cookies are set
-    # before hitting the Teams page, which the server may require.
-    if tournament.detail_url:
-        try:
-            client.get(tournament.detail_url, headers={"Referer": BASE_URL})
-        except httpx.HTTPError:
-            pass
-
     try:
-        referer = tournament.detail_url or BASE_URL
-        response = client.get(url, headers={"Referer": referer})
+        response = client.get(url)
         response.raise_for_status()
-    except httpx.HTTPError as exc:
-        log.warning("grand_slam: HTTP error fetching teams for %s: %s", tournament.source_id, exc)
+    except httpx.HTTPError:
         return tournament
 
     division_counts, division_teams = parse_whos_coming(response.text)
     if not division_counts:
-        log.warning(
-            "grand_slam: no divisions parsed from teams page for %s "
-            "(requested=%s, final=%s, status=%s, html_len=%d, preview=%r)",
-            tournament.source_id, url, str(response.url), response.status_code,
-            len(response.text), response.text[:500],
-        )
         return tournament
 
     tournament.division_team_counts = division_counts
@@ -205,6 +99,17 @@ def enrich_with_whos_coming(tournament: Tournament, client: httpx.Client) -> Tou
         if division not in tournament.age_divisions:
             tournament.age_divisions.append(division)
     return tournament
+
+
+def whos_coming_url(tournament: Tournament) -> str:
+    if "/Events/Details/" not in tournament.detail_url:
+        return ""
+    return tournament.detail_url.replace("/Events/Details/", "/Events/WhosComing/", 1)
+
+
+def parse_whos_coming_counts(html: str) -> dict[str, int]:
+    counts, _teams = parse_whos_coming(html)
+    return counts
 
 
 def parse_whos_coming(html: str) -> tuple[dict[str, int], dict[str, list[dict[str, str]]]]:
@@ -264,9 +169,7 @@ def _parse_whos_coming_team_rows(panel: Tag) -> list[dict[str, str]]:
         detail_url = ""
         if team_link:
             href = team_link.get("href", "")
-            detail_url = (
-                f"https://www.grandslamtournaments.com{href}" if href.startswith("/") else href
-            )
+            detail_url = f"https://www.game7baseball.com{href}" if href.startswith("/") else href
 
         confirmed_index = _column_index(headers, "confirmed", -1)
         confirmed = False
@@ -307,3 +210,71 @@ def _cell_text(cells: list[Tag], headers: list[str], header: str, default_index:
     if 0 <= index < len(cells):
         return clean_text(cells[index].get_text())
     return ""
+
+
+def parse_event_list(html: str) -> list[Tournament]:
+    soup = BeautifulSoup(html, "html.parser")
+    cards = soup.select("div.media-list.media-list-events > div.media")
+    return [_parse_event_card(card) for card in cards]
+
+
+def _parse_event_card(card: Tag) -> Tournament:
+    body = card.select_one(".media-body")
+    if body is None:
+        return Tournament(source=SOURCE, source_id="", name="", detail_url="")
+
+    name_link = body.select_one(".h4 a")
+    href = name_link.get("href", "") if name_link else ""
+    detail_url = f"https://www.game7baseball.com{href}" if href.startswith("/") else href
+    id_match = re.search(r"/Details/(\d+)/", href)
+
+    header_h6 = body.select_one(".h6")
+    location = ""
+    director = None
+    if header_h6:
+        for span in header_h6.find_all("span", recursive=False):
+            classes = span.get("class") or []
+            if "director" in classes:
+                director = clean_text(span.get_text()).lstrip("|").strip() or None
+            elif not location:
+                location = clean_text(span.get_text())
+
+    h4_elements = body.select(".h4")
+    date_text = clean_text(h4_elements[1].get_text()) if len(h4_elements) > 1 else ""
+    start_date, end_date = parse_date_range(date_text)
+
+    teams_el = body.select_one(".h5 strong")
+    registered_teams = None
+    if teams_el:
+        try:
+            registered_teams = int(clean_text(teams_el.get_text()))
+        except ValueError:
+            registered_teams = None
+
+    h6_elements = body.select(".h6")
+    age_divisions: list[str] = []
+    if len(h6_elements) > 1:
+        ages_text = h6_elements[-1].get_text(" ", strip=True)
+        age_divisions = [age.strip() for age in re.split(r"[·•]", ages_text) if age.strip()]
+
+    stature_el = card.select_one(".media-top .stature")
+    format_el = body.select_one("p.small")
+    logo_el = card.select_one(".media-thumbnail img")
+
+    return Tournament(
+        source=SOURCE,
+        source_id=id_match.group(1) if id_match else "",
+        name=clean_text(name_link.get_text()) if name_link else "",
+        detail_url=detail_url,
+        location=location,
+        director=director,
+        start_date=start_date,
+        end_date=end_date,
+        age_divisions=age_divisions,
+        registered_teams=registered_teams,
+        team_count_scope="event",
+        stature=clean_text(stature_el.get_text()) if stature_el else None,
+        format=clean_text(format_el.get_text()) if format_el else None,
+        tags=[clean_text(label.get_text()) for label in body.select(".tags .label")],
+        logo_url=logo_el.get("src") if logo_el else None,
+    )

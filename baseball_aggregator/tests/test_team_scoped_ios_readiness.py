@@ -226,6 +226,89 @@ def test_native_bearer_auth_works_when_cookie_auth_is_enabled(monkeypatch, tmp_p
         assert response.json()["team"]["slug"] == "8u-hawks"
 
 
+def test_v1_team_stats_family_requires_bearer_token(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("STAFF_TOOL_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-value-that-is-long-enough")
+    with sqlite3.connect(tmp_path / "baseball_staff_tool.sqlite3") as conn:
+        conn.row_factory = sqlite3.Row
+        init_db(conn)
+
+    with TestClient(app) as client:
+        for path in ("/api/v1/team-stats", "/api/v1/team-analysis", "/api/v1/available-seasons"):
+            response = client.get(path)
+            assert response.status_code == 401, path
+            assert response.json()["error"]["code"] == "authentication_required"
+
+
+def test_v1_team_stats_family_scopes_to_bearer_team(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("STAFF_TOOL_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("SESSION_SECRET", "test-secret-value-that-is-long-enough")
+    with sqlite3.connect(tmp_path / "baseball_staff_tool.sqlite3") as conn:
+        conn.row_factory = sqlite3.Row
+        init_db(conn)
+        storage.create_team(
+            conn,
+            slug="8u-hawks",
+            display_name="8U Hawks",
+            password="eight-pass",
+            settings={"target_age_division": "8U"},
+        )
+        storage.create_team(
+            conn,
+            slug="9u-hawks",
+            display_name="9U Hawks",
+            password="nine-pass",
+            settings={"target_age_division": "9U"},
+        )
+
+    with TestClient(app) as client:
+        eight_token = client.post(
+            "/api/v1/login", json={"team_slug": "8u-hawks", "password": "eight-pass"}
+        ).json()["session"]["token"]
+        nine_token = client.post(
+            "/api/v1/login", json={"team_slug": "9u-hawks", "password": "nine-pass"}
+        ).json()["session"]["token"]
+
+        eight_stats = client.get(
+            "/api/v1/team-stats", headers={"Authorization": f"Bearer {eight_token}"}
+        )
+        assert eight_stats.status_code == 200
+        body = eight_stats.json()
+        assert body["age"] == "8U"
+        assert "season" in body
+        assert "teams" in body and isinstance(body["teams"], list)
+        assert body["total_teams"] == len(body["teams"])
+
+        nine_stats = client.get(
+            "/api/v1/team-stats", headers={"Authorization": f"Bearer {nine_token}"}
+        )
+        assert nine_stats.status_code == 200
+        assert nine_stats.json()["age"] == "9U"
+
+        eight_stats_override = client.get(
+            "/api/v1/team-stats",
+            params={"age": "10U"},
+            headers={"Authorization": f"Bearer {eight_token}"},
+        )
+        assert eight_stats_override.status_code == 200
+        assert eight_stats_override.json()["age"] == "10U"
+
+        eight_analysis = client.get(
+            "/api/v1/team-analysis",
+            headers={"Authorization": f"Bearer {eight_token}"},
+        )
+        assert eight_analysis.status_code == 200
+
+        seasons = client.get(
+            "/api/v1/available-seasons",
+            headers={"Authorization": f"Bearer {eight_token}"},
+        )
+        assert seasons.status_code == 200
+        seasons_body = seasons.json()
+        assert "seasons" in seasons_body
+        assert "current" in seasons_body
+
+
 def test_web_team_login_scopes_existing_browser_api(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("STAFF_TOOL_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("STAFF_TOOL_PASSWORD", "legacy-web-pass")

@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
+
+STATS_STALE_DAYS = 7
+_TRACKED_SOURCES = ("ncs", "usssa", "perfect_game")
 
 
 def current_season_year() -> str:
@@ -95,7 +98,8 @@ def aggregate_team_records(
 
     # --- Fallback path: division_teams JSON (sources not yet in team_records) ---
     # Only runs for sources that have no data in team_records yet.
-    fallback_sources = {"ncs", "usssa", "perfect_game"} - sources_in_unified
+    # grand_slam and game7 are always in this path (no stats worker for them).
+    fallback_sources = {"ncs", "usssa", "perfect_game", "grand_slam", "game7"} - sources_in_unified
     if fallback_sources:
         rows = conn.execute(
             "SELECT source, division_teams FROM tournaments WHERE division_teams != '{}'",
@@ -161,6 +165,8 @@ def aggregate_team_records(
             "ncs_record":           src_record("ncs"),
             "usssa_record":         src_record("usssa"),
             "perfect_game_record":  src_record("perfect_game"),
+            "grand_slam_record":    src_record("grand_slam"),
+            "game7_record":         src_record("game7"),
             "cumulative_record":    _format_record(total_wins, total_losses, total_ties),
             "win_pct":              round(win_pct, 4),
             "total_games":          total_games,
@@ -307,7 +313,9 @@ def team_analysis_records(
                 if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
                     team_map[key]["sources"][source] = {"wins": wins, "losses": losses, "ties": ties}
 
-    # Augment team_map from team_records table before building results
+    # Augment team_map from team_records table before building results.
+    # Also track per-(team_name, source) scraped_at so we can flag loaded/stale/missing.
+    unified_scrape_times: dict[tuple[str, str], str] = {}
     if team_id:
         from baseball_aggregator.storage import get_team_records
         effective_season = season or current_season_year()
@@ -328,6 +336,13 @@ def team_analysis_records(
             existing = team_map[key]["sources"].get(src)
             if existing is None or total > existing["wins"] + existing["losses"] + existing["ties"]:
                 team_map[key]["sources"][src] = {"wins": wins, "losses": losses, "ties": ties}
+            scraped_at = r.get("scraped_at")
+            if scraped_at:
+                prev = unified_scrape_times.get((key, src))
+                if prev is None or scraped_at > prev:
+                    unified_scrape_times[(key, src)] = scraped_at
+
+    stale_cutoff = (datetime.now(UTC) - timedelta(days=STATS_STALE_DAYS)).isoformat()
 
     results: list[dict[str, Any]] = []
     for data in team_map.values():
@@ -344,6 +359,23 @@ def team_analysis_records(
                 return ""
             return _format_record(s["wins"], s["losses"], s["ties"])
 
+        team_key = data["team_name"].strip().lower()
+        sources_status: dict[str, str] = {}
+        for src in _TRACKED_SOURCES:
+            if src == "perfect_game":
+                # Per-team Perfect Game hydration is not implemented; if we have
+                # a record from the fallback path keep it as 'loaded', otherwise mark unsupported.
+                if src in sources:
+                    sources_status[src] = "loaded"
+                else:
+                    sources_status[src] = "unsupported"
+                continue
+            scraped_at = unified_scrape_times.get((team_key, src))
+            if scraped_at:
+                sources_status[src] = "loaded" if scraped_at >= stale_cutoff else "stale"
+            else:
+                sources_status[src] = "missing"
+
         appearances = [
             {**tournament_info[tid], "record": app_data["record"]}
             for tid, app_data in data["appearances"].items()
@@ -357,14 +389,25 @@ def team_analysis_records(
             "ncs_record": src_record("ncs"),
             "usssa_record": src_record("usssa"),
             "perfect_game_record": src_record("perfect_game"),
+            "grand_slam_record": src_record("grand_slam"),
+            "game7_record": src_record("game7"),
             "cumulative_record": _format_record(total_wins, total_losses, total_ties),
             "win_pct": round(win_pct, 4),
             "total_games": total_games,
             "tournament_count": len(appearances),
             "appearances": appearances,
+            "sources_status": sources_status,
         })
 
     results.sort(key=lambda x: (-x["win_pct"], -x["total_games"]))
+
+    sources_last_refreshed: dict[str, str | None] = {src: None for src in _TRACKED_SOURCES}
+    if team_id:
+        from baseball_aggregator.storage import get_latest_stat_refresh
+        for src in _TRACKED_SOURCES:
+            latest = get_latest_stat_refresh(conn, team_id, src)
+            if latest:
+                sources_last_refreshed[src] = latest.get("finished_at") or latest.get("started_at")
 
     return {
         "age": age_division,
@@ -372,4 +415,6 @@ def team_analysis_records(
         "teams": results,
         "total_teams": len(results),
         "tournaments": list(tournament_info.values()),
+        "sources_last_refreshed": sources_last_refreshed,
+        "stale_threshold_days": STATS_STALE_DAYS,
     }

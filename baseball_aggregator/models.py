@@ -12,7 +12,7 @@ DEFAULT_SETTINGS = {
     "target_age_division": "8U",
     "team_count_threshold": 4,
     "refresh_cadence_hours": 6,
-    "enabled_sources": ["ncs", "usssa", "perfect_game"],
+    "enabled_sources": ["ncs", "usssa", "perfect_game", "grand_slam", "game7"],
     "brand_primary": "#0f766e",
     "brand_secondary": "#115e59",
     "brand_accent": "#0ea5a2",
