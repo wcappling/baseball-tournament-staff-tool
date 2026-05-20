@@ -1008,6 +1008,8 @@ def _backfill_enabled_sources(conn: sqlite3.Connection) -> None:
     def _maybe_merge(current: list[str]) -> list[str] | None:
         if not _LEGACY_DEFAULT_SOURCES.issubset(current):
             return None
+        if any(s in current for s in new_sources):
+            return None  # already migrated; don't re-add removed sources
         merged = current + [s for s in new_sources if s not in current]
         return merged if merged != current else None
 
