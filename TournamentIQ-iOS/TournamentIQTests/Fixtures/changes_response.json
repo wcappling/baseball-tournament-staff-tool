@@ -1,0 +1,26 @@
+[
+  {
+    "id": 2,
+    "tournament_id": 2,
+    "source": "usssa",
+    "source_id": "fixture-2",
+    "field": "created",
+    "old_value": null,
+    "new_value": "Minimal Event",
+    "detected_at": "2026-05-15T01:38:58.286390+00:00",
+    "staff_visible": 1,
+    "tournament_name": "Minimal Event"
+  },
+  {
+    "id": 1,
+    "tournament_id": 1,
+    "source": "ncs",
+    "source_id": "fixture-1",
+    "field": "created",
+    "old_value": null,
+    "new_value": "Spring Classic",
+    "detected_at": "2026-05-15T01:38:58.286390+00:00",
+    "staff_visible": 1,
+    "tournament_name": "Spring Classic"
+  }
+]

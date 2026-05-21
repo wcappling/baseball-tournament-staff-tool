@@ -1,0 +1,33 @@
+{
+  "age": "8U",
+  "season": "2026",
+  "teams": [
+    {
+      "team_name": "Hawks 8U",
+      "city_state": "Huntsville, AL",
+      "ncs_record": "12-3-0",
+      "usssa_record": "",
+      "perfect_game_record": "",
+      "cumulative_record": "12-3-0",
+      "win_pct": 0.8,
+      "total_games": 15,
+      "sources_seen": [
+        "ncs"
+      ]
+    },
+    {
+      "team_name": "Rays 8U",
+      "city_state": "Madison, AL",
+      "ncs_record": "8-5-0",
+      "usssa_record": "",
+      "perfect_game_record": "",
+      "cumulative_record": "8-5-0",
+      "win_pct": 0.6154,
+      "total_games": 13,
+      "sources_seen": [
+        "ncs"
+      ]
+    }
+  ],
+  "total_teams": 2
+}

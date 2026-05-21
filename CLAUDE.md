@@ -2,14 +2,24 @@
 
 ## Branch & Deployment Strategy
 
-| Environment | Railway Service | GitHub Branch | When to merge |
+| Branch | Purpose | Receives changes from | Deploys to |
 |---|---|---|---|
-| Dev | Tournament IQ Dev | `dev` | All active development PRs |
-| Prod | Tournament IQ Prod | `main` | Large batch releases from `dev` when stable |
+| `dev` | Active feature development | Feature PRs from short-lived branches | Tournament IQ Dev (Railway) |
+| `main` | Stable production releases | Promoted from `dev` in batches | Tournament IQ Prod (Railway) |
+| `ios` | iOS app source + snapshot of backend the app ships against | Forward-merges from `main`; direct iOS-only commits | Xcode / TestFlight builds |
 
-**All feature PRs target `dev`.** Never create a PR targeting `main` unless explicitly requested for a production release.
+**All web/backend feature PRs target `dev`.** Never create a PR targeting `main` unless explicitly requested for a production release.
 
 Railway auto-deploys from the connected branch on push — merging a PR to `dev` automatically redeploys Tournament IQ Dev. No separate trigger PR is needed.
+
+### iOS branch rules
+
+- `ios` is **long-lived** and was created from `main`.
+- All commits under `/TournamentIQ-iOS/` go directly on `ios` (or via short-lived branches that PR into `ios`).
+- `ios` never PRs back into `dev` or `main`.
+- To pick up backend / web changes, `ios` does a forward `git merge origin/main` periodically. Flow for shared changes is `dev → main → ios`.
+- New backend endpoints required by the iOS app (e.g. `/api/v1/*` bearer-auth forwarders) land on `dev` first, promote to `main`, then arrive on `ios` via the next forward-merge. They may be cherry-picked onto `ios` short-term to unblock app development.
+- TestFlight / App Store builds are cut from tags on the `ios` branch.
 
 ## Repository Layout
 
@@ -18,6 +28,7 @@ Railway auto-deploys from the connected branch on push — merging a PR to `dev`
 - `baseball_aggregator/storage.py` — SQLite persistence layer (tournaments, shortlist, settings)
 - `baseball_aggregator/static/` — Single-page frontend (index.html, app.js, styles.css)
 - `tests/` — pytest test suite
+- `TournamentIQ-iOS/` — Native iOS app (Swift / SwiftUI). Only present on the `ios` branch. Generates an `.xcodeproj` from `project.yml` via XcodeGen; do not commit the generated project.
 
 ## Railway Environment Variables
 

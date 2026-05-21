@@ -18,3 +18,12 @@ baseball_aggregator/mnt/
 backups/
 pytest-cache-files-*/
 .claude/
+
+# iOS / Xcode (TournamentIQ-iOS, ios branch only)
+TournamentIQ-iOS/TournamentIQ.xcodeproj/
+TournamentIQ-iOS/**/*.xcworkspace/xcuserdata/
+TournamentIQ-iOS/**/xcuserdata/
+TournamentIQ-iOS/**/*.xcuserstate
+TournamentIQ-iOS/.build/
+TournamentIQ-iOS/.swiftpm/
+TournamentIQ-iOS/DerivedData/
